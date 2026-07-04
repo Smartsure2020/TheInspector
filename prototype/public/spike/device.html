@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spike — Device Capability (SP3/SP4/SP6 device-level)</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#0f172a;color:#e2e8f0}
+  .wrap{max-width:480px;margin:0 auto;padding:12px}
+  h1{font-size:16px} .note{font-size:11px;color:#94a3b8}
+  video{width:100%;border-radius:12px;background:#000;aspect-ratio:3/4;object-fit:cover}
+  button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:12px 14px;font-size:14px;font-weight:600;margin:4px 2px}
+  button.alt{background:#475569}
+  #log{font-size:12px;background:#1e293b;border-radius:10px;padding:10px;margin-top:10px;white-space:pre-wrap;word-break:break-word}
+  .ok{color:#4ade80}.bad{color:#f87171}.warn{color:#fbbf24}
+  img{max-width:100%;border-radius:10px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Device capability spike — throwaway harness</h1>
+  <p class="note">Run this on the REAL test phones (iPhone Safari, Android Chrome). Requires HTTPS
+  (or localhost). Results append below — screenshot the log for the spike report.
+  Prototype spike only; no data leaves the device.</p>
+  <video id="v" autoplay playsinline muted></video>
+  <div>
+    <button onclick="start('user')">Front cam</button>
+    <button onclick="start('environment')">Rear cam (SP3)</button>
+    <button class="alt" onclick="torch(true)">Torch ON (SP4)</button>
+    <button class="alt" onclick="torch(false)">Torch off</button>
+  </div>
+  <div>
+    <button onclick="hires()">High-res still (SP6)</button>
+    <button class="alt" onclick="enumerate()">List cameras</button>
+  </div>
+  <div id="log">Log:\n</div>
+  <div id="shot"></div>
+</div>
+<script>
+let stream, track;
+const log = (m, cls) => {
+  const el = document.getElementById('log');
+  el.innerHTML += (cls ? `<span class="${cls}">` + m + '</span>' : m) + '\n';
+};
+const ua = navigator.userAgent;
+log('UA: ' + ua);
+log('Secure context: ' + window.isSecureContext, window.isSecureContext ? 'ok' : 'bad');
+
+async function start(facing){
+  try{
+    stream?.getTracks().forEach(t=>t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}, width:{ideal:1920}, height:{ideal:1440}}, audio:false});
+    track = stream.getVideoTracks()[0];
+    document.getElementById('v').srcObject = stream;
+    const s = track.getSettings();
+    log(`SP3 ${facing}: ${track.label || '(no label)'} ${s.width}x${s.height} facing=${s.facingMode||'?'}`, 'ok');
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    log('torch capability: ' + ('torch' in caps ? 'YES' : 'not reported'), 'torch' in caps ? 'ok' : 'warn');
+  }catch(e){ log('SP3 ' + facing + ' FAIL: ' + e.name + ' ' + e.message, 'bad'); }
+}
+
+async function torch(on){
+  if(!track){ log('start a camera first','warn'); return; }
+  try{
+    await track.applyConstraints({advanced:[{torch:on}]});
+    log('SP4 torch ' + (on?'ON':'off') + ': applied — CONFIRM VISUALLY', 'ok');
+  }catch(e){ log('SP4 torch FAIL: ' + e.name + ' ' + e.message + ' (expected on iOS Safari — record as workaround-needed)', 'bad'); }
+}
+
+async function hires(){
+  if(!track){ log('start a camera first','warn'); return; }
+  const t0 = performance.now();
+  try{
+    if(window.ImageCapture){
+      const ic = new ImageCapture(track);
+      const blob = await ic.takePhoto().catch(()=>null);
+      if(blob){
+        const img = await createImageBitmap(blob);
+        log(`SP6 ImageCapture.takePhoto: ${img.width}x${img.height} (${Math.round(blob.size/1024)} KB) in ${Math.round(performance.now()-t0)} ms`, 'ok');
+        show(blob); return;
+      }
+      log('takePhoto unavailable — falling back to canvas grab', 'warn');
+    } else { log('ImageCapture API not present (expected on iOS Safari) — canvas fallback', 'warn'); }
+    const v = document.getElementById('v');
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v,0,0);
+    c.toBlob(b=>{
+      log(`SP6 canvas fallback: ${c.width}x${c.height} (${Math.round(b.size/1024)} KB) in ${Math.round(performance.now()-t0)} ms — stream resolution ceiling`, 'warn');
+      show(b);
+    },'image/jpeg',0.9);
+  }catch(e){ log('SP6 FAIL: ' + e.name + ' ' + e.message, 'bad'); }
+}
+function show(blob){
+  const img = document.createElement('img');
+  img.src = URL.createObjectURL(blob);
+  const d = document.getElementById('shot'); d.innerHTML=''; d.appendChild(img);
+}
+async function enumerate(){
+  const devs = await navigator.mediaDevices.enumerateDevices();
+  devs.filter(d=>d.kind==='videoinput').forEach(d=>log('cam: ' + (d.label||'(label hidden until permission)')));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spike — LiveKit Cloud harness (SP1/2/5/7/8/9)</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#0f172a;color:#e2e8f0}
+  .wrap{max-width:640px;margin:0 auto;padding:12px}
+  input{width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#fff;font-size:13px;box-sizing:border-box;margin-top:6px}
+  button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;margin:6px 4px 0 0}
+  video{width:100%;border-radius:12px;background:#000;max-height:45vh}
+  #log{font-size:12px;background:#1e293b;border-radius:10px;padding:10px;margin-top:10px;white-space:pre-wrap}
+  .ok{color:#4ade80}.bad{color:#f87171}
+  img{max-width:160px;border-radius:8px;margin:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h3>LiveKit Cloud spike harness — throwaway</h3>
+  <p style="font-size:11px;color:#94a3b8">Setup: LiveKit Cloud free project → Settings gives the wss:// URL; generate two access
+  tokens (dashboard token tool or `lk token create`), same room name. Laptop = one token,
+  phone = the other. Capture tests SP5/SP7 against the phone's stream.</p>
+  <input id="url" placeholder="wss://YOUR-PROJECT.livekit.cloud" />
+  <input id="token" placeholder="access token (JWT)" />
+  <div>
+    <button onclick="join()">Join (SP1/SP2)</button>
+    <button onclick="capture()">Capture remote frame (SP5/SP7)</button>
+    <button onclick="leave()">Leave</button>
+  </div>
+  <video id="remote" autoplay playsinline></video>
+  <div id="shots"></div>
+  <div id="log">Log:\n</div>
+</div>
+<script>
+let room, remoteTrack;
+const log=(m,c)=>{document.getElementById('log').innerHTML+=(c?`<span class="${c}">`+m+'</span>':m)+'\n';};
+
+async function join(){
+  const LK = window.LivekitClient;
+  const url=document.getElementById('url').value.trim();
+  const token=document.getElementById('token').value.trim();
+  if(!url||!token){log('need url + token','bad');return;}
+  room = new LK.Room({adaptiveStream:true});
+  room.on(LK.RoomEvent.TrackSubscribed,(track)=>{
+    if(track.kind==='video'){
+      remoteTrack=track;
+      track.attach(document.getElementById('remote'));
+      log('SP5 remote video track subscribed','ok');
+    }
+  });
+  room.on(LK.RoomEvent.Reconnecting,()=>log('SP8 reconnecting…'));
+  room.on(LK.RoomEvent.Reconnected,()=>log('SP8 reconnected','ok'));
+  room.on(LK.RoomEvent.Disconnected,()=>log('disconnected'));
+  const t0=performance.now();
+  await room.connect(url,token);
+  log(`connected in ${Math.round(performance.now()-t0)} ms`,'ok');
+  await room.localParticipant.setCameraEnabled(true);
+  await room.localParticipant.setMicrophoneEnabled(true);
+  log('local cam+mic published (SP1/SP2: record taps-from-link + device)','ok');
+}
+function capture(){
+  if(!remoteTrack){log('no remote track yet — join from the phone too','bad');return;}
+  const t0=performance.now();
+  const v=document.getElementById('remote');
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0);
+  c.toBlob(b=>{
+    const ms=Math.round(performance.now()-t0);
+    log(`SP5/SP7 frame: ${c.width}x${c.height}, ${Math.round(b.size/1024)} KB, grab-to-thumbnail ${ms} ms`, ms<1000?'ok':'bad');
+    const img=document.createElement('img'); img.src=URL.createObjectURL(b);
+    document.getElementById('shots').prepend(img);
+  },'image/jpeg',0.85);
+}
+async function leave(){ await room?.disconnect(); log('left'); }
+// SP8 protocol: flight-mode the phone 30 s and restore — Reconnecting/Reconnected
+// events above are the measurement.
+</script>
+</body>
+</html>

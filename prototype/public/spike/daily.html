@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spike — Daily.co harness (SP1/2/5/7/8/9)</title>
+<script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#0f172a;color:#e2e8f0}
+  .wrap{max-width:640px;margin:0 auto;padding:12px}
+  input{width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#fff;font-size:13px;box-sizing:border-box}
+  button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;margin:6px 4px 0 0}
+  video{width:100%;border-radius:12px;background:#000;max-height:45vh}
+  #log{font-size:12px;background:#1e293b;border-radius:10px;padding:10px;margin-top:10px;white-space:pre-wrap}
+  .ok{color:#4ade80}.bad{color:#f87171}
+  img{max-width:160px;border-radius:8px;margin:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h3>Daily.co spike harness — throwaway</h3>
+  <p style="font-size:11px;color:#94a3b8">Setup: create a free Daily.co account → create a room → paste the room URL below.
+  Assessor side: open this page on the laptop. Client side: open the SAME page + room URL on the phone.
+  On the laptop, use "Capture remote frame" to test SP5/SP7 against the phone's stream.</p>
+  <input id="room" placeholder="https://YOURDOMAIN.daily.co/YOURROOM" />
+  <div>
+    <button onclick="join()">Join (SP1/SP2)</button>
+    <button onclick="capture()">Capture remote frame (SP5/SP7)</button>
+    <button onclick="leave()">Leave</button>
+  </div>
+  <video id="remote" autoplay playsinline></video>
+  <div id="shots"></div>
+  <div id="log">Log:\n</div>
+</div>
+<script>
+let call, remoteTrack;
+const log=(m,c)=>{document.getElementById('log').innerHTML+=(c?`<span class="${c}">`+m+'</span>':m)+'\n';};
+
+async function join(){
+  const url=document.getElementById('room').value.trim();
+  if(!url){log('paste a Daily room URL first','bad');return;}
+  const factory = window.Daily || window.DailyIframe;
+  call = factory.createCallObject();
+  call.on('track-started', ev=>{
+    if(ev.participant && !ev.participant.local && ev.track.kind==='video'){
+      remoteTrack = ev.track;
+      document.getElementById('remote').srcObject = new MediaStream([ev.track]);
+      const s = ev.track.getSettings ? ev.track.getSettings() : {};
+      log('SP5 remote video track received ' + (s.width?`${s.width}x${s.height}`:''), 'ok');
+    }
+  });
+  call.on('participant-left', ()=>log('participant left'));
+  call.on('network-connection', ev=>log('network: '+ev.type+' '+ev.event));
+  call.on('error', e=>log('ERROR: '+JSON.stringify(e), 'bad'));
+  const t0=performance.now();
+  await call.join({url});
+  log(`joined in ${Math.round(performance.now()-t0)} ms (SP1/SP2: record taps-from-link + device used)`, 'ok');
+}
+function capture(){
+  if(!remoteTrack){log('no remote track yet — join from the phone too','bad');return;}
+  const t0=performance.now();
+  const v=document.getElementById('remote');
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0);
+  c.toBlob(b=>{
+    const ms=Math.round(performance.now()-t0);
+    log(`SP5/SP7 frame: ${c.width}x${c.height}, ${Math.round(b.size/1024)} KB, grab-to-thumbnail ${ms} ms`, ms<1000?'ok':'bad');
+    const img=document.createElement('img'); img.src=URL.createObjectURL(b);
+    document.getElementById('shots').prepend(img);
+  },'image/jpeg',0.85);
+}
+async function leave(){ await call?.leave(); log('left'); }
+// SP8 protocol: with both sides joined, put the phone in flight mode 30 s, restore,
+// and record what daily-js does (auto-rejoin events appear in this log).
+</script>
+</body>
+</html>

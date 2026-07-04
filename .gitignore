@@ -1,0 +1,18 @@
+# Prototype runtime artefacts
+prototype/node_modules/
+prototype/.next/
+prototype/db/*.db
+prototype/db/*.db-journal
+
+# Secrets — never committed (provider keys/tokens live in .env.local only)
+.env
+.env.*
+prototype/.env
+prototype/.env.*
+
+# Local tool settings
+.claude/settings.local.json
+
+# OS
+Thumbs.db
+.DS_Store
