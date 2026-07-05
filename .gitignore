@@ -2,7 +2,7 @@
 prototype/node_modules/
 prototype/.next/
 prototype/db/*.db
-prototype/db/*.db-journal
+prototype/db/*.db-*
 
 # Secrets — never committed (provider keys/tokens live in .env.local only)
 .env
