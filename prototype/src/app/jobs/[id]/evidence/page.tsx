@@ -43,7 +43,18 @@ export default async function EvidenceGallery({ params }: { params: Promise<{ id
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {inSection.map((e) => (
                     <div key={e.id} className="bg-white rounded-lg border border-slate-200 p-2">
-                      <PhotoTile hue={e.hue ?? 200} label={e.label} />
+                      {(e as unknown as { file_key: string | null }).file_key ? (
+                        (e as unknown as { mime_type: string | null }).mime_type === "application/pdf" ? (
+                          <a href={`/api/files/${e.id}`} target="_blank" className="h-32 w-full rounded-md bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-medium">
+                            📄 PDF — open
+                          </a>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`/api/files/${e.id}`} alt={e.label} className="h-32 w-full object-cover rounded-md" />
+                        )
+                      ) : (
+                        <PhotoTile hue={e.hue ?? 200} label={e.label} />
+                      )}
                       <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
                         <span className={`rounded px-1 ${e.kind === "highres_client_photo" ? "bg-violet-100 text-violet-700" : e.kind === "client_upload" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100"}`}>
                           {e.kind === "highres_client_photo" ? "HIGH-RES" : e.kind === "client_upload" ? "UPLOAD" : "FRAME"}

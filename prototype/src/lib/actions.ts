@@ -67,9 +67,14 @@ export async function scheduleAction(jobId: string, formData: FormData) {
     db().prepare("UPDATE appointments SET status='rescheduled', link_revoked_at=? WHERE id=?").run(now, prev.id);
 
   const attempt = job.attempt_count + 1;
+  // Link validity: opens 2h before (resolveToken), expires 24h after the start.
+  // Local wall-clock formatting throughout (prototype runs single-timezone SAST).
+  const exp = new Date(new Date(when.replace(" ", "T")).getTime() + 24 * 60 * 60 * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const expires = `${exp.getFullYear()}-${p(exp.getMonth() + 1)}-${p(exp.getDate())} ${p(exp.getHours())}:${p(exp.getMinutes())}`;
   db().prepare(`INSERT INTO appointments (id,job_id,attempt_number,scheduled_start,duration_minutes,status,link_token,link_expires_at,created_at)
     VALUES (?,?,?,?,?, 'scheduled', ?,?,?)`)
-    .run(uuid(), jobId, attempt, when, duration, token, "2026-12-31 23:59", now);
+    .run(uuid(), jobId, attempt, when, duration, token, expires, now);
   db().prepare("UPDATE jobs SET attempt_count=?, updated_at=? WHERE id=?").run(attempt, now, jobId);
 
   if (job.status === "Assigned" || job.status === "No-show")
@@ -119,13 +124,65 @@ export async function submitReportAction(jobId: string) {
 }
 
 // Client-side events (actor = client_link; identified by possession of the token).
+const jobIdForToken = (token: string) =>
+  (db().prepare(
+    `SELECT job_id FROM appointments WHERE link_token=?
+     UNION SELECT job_id FROM client_upload_requests WHERE link_token=? LIMIT 1`
+  ).get(token, token) as { job_id: string } | undefined)?.job_id;
+
 export async function consentAction(token: string, name: string) {
-  const job = db().prepare("SELECT job_id FROM appointments WHERE link_token=? AND link_revoked_at IS NULL").get(token) as { job_id: string } | undefined;
-  if (job) logEvent(job.job_id, CLIENT_ACTOR, "consent_accepted", { name, text_version: "draft-1" });
+  const jobId = jobIdForToken(token);
+  if (jobId) logEvent(jobId, CLIENT_ACTOR, "consent_accepted", { name, text_version: "draft-1" });
   redirect(`/c/${token}/check`);
 }
 
+export async function consentDeclineAction(token: string) {
+  const jobId = jobIdForToken(token);
+  if (jobId) logEvent(jobId, CLIENT_ACTOR, "consent_declined", {});
+  revalidatePath(`/jobs/${jobId}`);
+}
+
 export async function cannotAttendAction(token: string) {
-  const job = db().prepare("SELECT job_id FROM appointments WHERE link_token=? AND link_revoked_at IS NULL").get(token) as { job_id: string } | undefined;
-  if (job) logEvent(job.job_id, CLIENT_ACTOR, "client_requested_reschedule", {});
+  const jobId = jobIdForToken(token);
+  if (jobId) logEvent(jobId, CLIENT_ACTOR, "client_requested_reschedule", {});
+}
+
+// Pre-join telemetry (Chunk 1C) — powers staff readiness indicators.
+export async function clientPingAction(token: string, kind: "link_opened" | "device_check_passed" | "client_waiting", data?: Record<string, unknown>) {
+  const jobId = jobIdForToken(token);
+  if (!jobId) return;
+  // Dedupe per job+kind: readiness is boolean, repeated pings add noise only.
+  const seen = db().prepare("SELECT 1 FROM event_log WHERE job_id=? AND event_type=? LIMIT 1").get(jobId, kind);
+  if (!seen) logEvent(jobId, CLIENT_ACTOR, kind, data ?? {});
+}
+
+export async function requestNewLinkAction(token: string) {
+  const jobId = jobIdForToken(token);
+  if (jobId) logEvent(jobId, CLIENT_ACTOR, "client_requested_new_link", {});
+}
+
+// Real client upload (moved into 1C by instruction; dedicated upload-request
+// creation UI remains 1G). File → local storage → evidence_items row tagged to
+// the checklist item. sha256/original_metadata stay empty (Tier B).
+export async function uploadEvidenceAction(token: string, itemKey: string, formData: FormData) {
+  const { resolveToken } = await import("./data");
+  const info = resolveToken(token);
+  if (!info.job || info.state === "revoked" || info.state === "invalid") throw new Error("This link is no longer active.");
+  const file = formData.get("file") as File | null;
+  if (!file || file.size === 0) throw new Error("No file received.");
+  const { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES, saveUpload } = await import("./storage");
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File too large (max 15 MB).");
+  if (!ALLOWED_UPLOAD_MIMES.includes(file.type)) throw new Error("Please upload a photo or PDF.");
+
+  const id = uuid();
+  const fileKey = saveUpload(id, file.type, Buffer.from(await file.arrayBuffer()));
+  db().prepare(`INSERT INTO evidence_items
+      (id, job_id, item_key, kind, file_key, mime_type, byte_size, label, captured_at, is_featured, sort_order)
+    VALUES (?,?,?,?,?,?,?,?,?,0,0)`)
+    .run(id, info.job.id, itemKey, "client_upload", fileKey, file.type, file.size,
+      `Client upload – ${itemKey} – ${nowIso().slice(11)}`, nowIso());
+  logEvent(info.job.id, CLIENT_ACTOR, "upload_received", { item_key: itemKey, bytes: file.size, mime: file.type });
+  revalidatePath(`/c/${token}/upload`);
+  revalidatePath(`/jobs/${info.job.id}/evidence`);
+  revalidatePath(`/jobs/${info.job.id}`);
 }

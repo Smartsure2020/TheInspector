@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# The Inspector — workflow prototype (Phase 1)
 
-## Getting Started
+**Codename only — not client-facing branding. Acorn only. Role-play / anonymised
+data only; no real client data (phase0 D-09 safeguard gate).**
 
-First, run the development server:
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The SQLite database self-creates and self-seeds at `db/inspector.db` on first
+request. Delete `db/inspector.db*` to reset to seed data. Client uploads land in
+`db/uploads/` (gitignored).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Entry points
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `/` — placeholder role picker (Admin / Assessor / Manager). No login exists in
+  Phase 1 by design; this is mock access (AC9).
+- `/c/demo-geyser`, `/c/demo-acc` — demo client links (long-dated seeds).
+- `/c/demo-upload/upload` — demo missing-evidence upload page (job INS-2026-0006).
+- `/spike/device.html`, `/spike/daily.html`, `/spike/livekit.html` — video-provider
+  spike harnesses (see `../phase1/spike-report.md`). Phones need HTTPS: use
+  `next dev --experimental-https` or a tunnel.
 
-## Learn More
+## Database note (important)
 
-To learn more about Next.js, take a look at the following resources:
+Prototype runs **SQLite** (no Postgres/Docker on the dev machine; keeps the demo
+one-command). Schema mirrors `../phase1/05-data-model-and-statuses.md` and stays
+Postgres-portable. **Postgres migration is required before real-client shadow mode
+or production hardening** — treat it as a gate item with the D-09 live-data
+safeguard gate.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scope guards (binding)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+No production auth/MFA/permissions, no POPIA/storage/audit hardening, no surveys,
+no fire claims, no AI, no integrations, no video recording, no WhatsApp. Chunk 1D
+(live room) is blocked until the SP1–SP10 device spike verdict is approved.
+Provider secrets/tokens never go in the repo — `.env.local` only (gitignored);
+the spike harnesses take keys via on-page inputs at runtime.

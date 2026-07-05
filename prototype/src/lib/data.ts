@@ -122,6 +122,70 @@ export const templateItemByKey = (sections: TemplateSection[], key: string) => {
   return undefined;
 };
 
+// ---------- link-state machine (Chunk 1C) ----------
+// States: valid | too_early | expired | revoked | invalid.
+// Prototype windows: join links open 2h before the appointment; expiry is the
+// explicit link_expires_at only (new bookings set start + 24h; demo seeds are
+// long-dated so walkthroughs keep working).
+export type LinkState = "valid" | "too_early" | "expired" | "revoked" | "invalid";
+export interface TokenInfo {
+  state: LinkState;
+  purpose: "join" | "upload";
+  job?: JobRow;
+  appointment?: AppointmentRow;
+  scheduledStart?: string;
+}
+const EARLY_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+export function resolveToken(token: string): TokenInfo {
+  const appt = db().prepare("SELECT * FROM appointments WHERE link_token=?").get(token) as AppointmentRow | undefined;
+  if (appt) {
+    const job = getJob(appt.job_id);
+    const info: TokenInfo = { state: "valid", purpose: "join", job, appointment: appt, scheduledStart: appt.scheduled_start };
+    if (appt.link_revoked_at || appt.status === "rescheduled" || appt.status === "cancelled") return { ...info, state: "revoked" };
+    if (job?.status === "Cancelled") return { ...info, state: "revoked" };
+    const expires = (appt as unknown as { link_expires_at: string | null }).link_expires_at;
+    if (expires && Date.now() > new Date(expires.replace(" ", "T")).getTime()) return { ...info, state: "expired" };
+    if (Date.now() < new Date(appt.scheduled_start.replace(" ", "T")).getTime() - EARLY_WINDOW_MS) return { ...info, state: "too_early" };
+    return info;
+  }
+  const upr = db().prepare("SELECT * FROM client_upload_requests WHERE link_token=?").get(token) as
+    { job_id: string; revoked_at: string | null; expires_at: string | null } | undefined;
+  if (upr) {
+    const job = getJob(upr.job_id);
+    const info: TokenInfo = { state: "valid", purpose: "upload", job };
+    if (upr.revoked_at) return { ...info, state: "revoked" };
+    if (upr.expires_at && Date.now() > new Date(upr.expires_at.replace(" ", "T")).getTime()) return { ...info, state: "expired" };
+    return info;
+  }
+  return { state: "invalid", purpose: "join" };
+}
+
+// ---------- client readiness (Chunk 1C, staff-side indicators) ----------
+export interface Readiness { linkOpened: boolean; consent: boolean; deviceCheck: boolean; waiting: boolean }
+export function clientReadiness(jobId: string): Readiness {
+  const has = (type: string) =>
+    !!db().prepare("SELECT 1 FROM event_log WHERE job_id=? AND event_type=? LIMIT 1").get(jobId, type);
+  return {
+    linkOpened: has("link_opened"),
+    consent: has("consent_accepted"),
+    deviceCheck: has("device_check_passed"),
+    waiting: has("client_waiting"),
+  };
+}
+
+// Uploads present per checklist item (drives client-side complete ticks).
+export const uploadsByItem = (jobId: string) => {
+  const rows = db().prepare(
+    "SELECT item_key, COUNT(*) AS n FROM evidence_items WHERE job_id=? AND kind='client_upload' AND discarded_at IS NULL GROUP BY item_key"
+  ).all(jobId) as { item_key: string; n: number }[];
+  return new Map(rows.map((r) => [r.item_key, r.n]));
+};
+
+export const getEvidence = (id: string) =>
+  db().prepare("SELECT * FROM evidence_items WHERE id=?").get(id) as
+    (EvidenceRow & { file_key: string | null; mime_type: string | null }) | undefined;
+
 export const nextJobNumber = () => {
   const n = (db().prepare("SELECT COUNT(*) AS n FROM jobs").get() as { n: number }).n + 1;
   return `INS-2026-${String(n).padStart(4, "0")}`;

@@ -25,6 +25,12 @@ export default async function Schedule({ params, searchParams }: {
 
   const scheduleWithId = scheduleAction.bind(null, id);
 
+  // Role-play-friendly defaults: today, ~30 min from now (links open 2h early,
+  // so a link booked for "soon" is immediately usable in usability tests).
+  const soon = new Date(Date.now() + 30 * 60 * 1000);
+  const defDate = `${soon.getFullYear()}-${String(soon.getMonth() + 1).padStart(2, "0")}-${String(soon.getDate()).padStart(2, "0")}`;
+  const defTime = `${String(soon.getHours()).padStart(2, "0")}:${String(soon.getMinutes()).padStart(2, "0")}`;
+
   return (
     <StaffShell title={`Schedule — ${job.job_number}`}>
       <div className="max-w-xl">
@@ -38,11 +44,11 @@ export default async function Schedule({ params, searchParams }: {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
-                <input name="date" type="date" required defaultValue="2026-07-06" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                <input name="date" type="date" required defaultValue={defDate} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Time (SAST)</label>
-                <input name="time" type="time" required defaultValue="10:00" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                <input name="time" type="time" required defaultValue={defTime} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
             <p className="text-xs text-slate-400 mt-2">

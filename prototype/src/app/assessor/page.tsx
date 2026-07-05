@@ -2,7 +2,27 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { StaffShell, StatusChip } from "@/components/Chrome";
-import { listJobs, getUser } from "@/lib/data";
+import { listJobs, getUser, clientReadiness } from "@/lib/data";
+
+function ReadyDots({ jobId }: { jobId: string }) {
+  const r = clientReadiness(jobId);
+  const dots: [string, boolean][] = [
+    ["link opened", r.linkOpened],
+    ["consent accepted", r.consent],
+    ["camera check passed", r.deviceCheck],
+    ["in waiting room", r.waiting],
+  ];
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      {dots.map(([label, on]) => (
+        <span key={label} className="flex items-center gap-1 text-[10px] text-slate-500" title={label}>
+          <span className={`inline-block w-2 h-2 rounded-full ${on ? "bg-emerald-500" : "bg-slate-300"}`} />
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +49,14 @@ export default async function AssessorDashboard() {
             <div className="flex-1">
               <div className="font-medium text-slate-800">{j.scheduled_start ?? "now"} — {j.client_name}</div>
               <div className="text-xs text-slate-500">{j.job_number} · {j.claim_type === "geyser_water" ? "Geyser / water" : "Accidental"} · attempt {j.attempt_count}</div>
-              <div className="text-xs mt-1">
-                <span className={`inline-block w-2 h-2 rounded-full mr-1 ${j.status === "In progress" ? "bg-emerald-500" : "bg-slate-300"}`} />
-                {j.status === "In progress" ? "Client in session" : "Client not yet joined"}
-              </div>
+              {j.status === "In progress" ? (
+                <div className="text-xs mt-1">
+                  <span className="inline-block w-2 h-2 rounded-full mr-1 bg-emerald-500" />
+                  Client in session
+                </div>
+              ) : (
+                <ReadyDots jobId={j.id} />
+              )}
             </div>
             <Link href={`/jobs/${j.id}/room`} className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-semibold">Join room</Link>
           </div>

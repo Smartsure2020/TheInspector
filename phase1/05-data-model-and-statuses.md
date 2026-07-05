@@ -90,7 +90,13 @@ Append-only by convention (no update/delete code paths written).
 
 ## 5.2 Storage & infra notes (prototype)
 
-- Postgres from day one (not SQLite) — JSON columns + the exact DB we harden on.
+- ~~Postgres from day one~~ **Amended during 1B (approved):** the prototype runs
+  SQLite (better-sqlite3) because the dev machine has no Postgres/Docker and the
+  demo must stay one-command. Schema is kept Postgres-portable (TEXT uuid PKs,
+  ISO UTC timestamps, JSON-in-TEXT columns).
+  **⚠ Migration to Postgres is REQUIRED before real-client shadow mode or any
+  production hardening begins** — it is a gate item alongside the live-data
+  safeguard gate (phase0 doc 10, D-09), not an optional improvement.
 - Files via one `Storage` interface: local disk in dev, S3-compatible bucket for the
   shared prototype environment. Keys: `jobs/{job_id}/evidence/{evidence_id}.jpg` —
   stable forever.

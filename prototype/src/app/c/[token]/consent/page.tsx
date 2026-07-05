@@ -1,12 +1,17 @@
 // S9 — Consent PLACEHOLDER (draft wording; final legal text = production hardening).
 // Acceptance now logs a consent_accepted event against the job (Chunk 1B).
+import { redirect } from "next/navigation";
 import { ClientShell } from "@/components/Chrome";
 import { ConsentForm } from "@/components/ClientBits";
+import { resolveToken } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export default async function Consent({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  const info = resolveToken(token);
+  // Problem states get the friendly explanation on the landing page.
+  if (info.state === "invalid" || info.state === "revoked" || info.state === "expired") redirect(`/c/${token}`);
   return (
     <ClientShell>
       <div className="mt-6">
