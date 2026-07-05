@@ -1,15 +1,12 @@
-"use client";
 // S9 — Consent PLACEHOLDER (draft wording; final legal text = production hardening).
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+// Acceptance now logs a consent_accepted event against the job (Chunk 1B).
 import { ClientShell } from "@/components/Chrome";
+import { ConsentForm } from "@/components/ClientBits";
 
-export default function Consent() {
-  const { token } = useParams<{ token: string }>();
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [tick, setTick] = useState(false);
+export const dynamic = "force-dynamic";
 
+export default async function Consent({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
   return (
     <ClientShell>
       <div className="mt-6">
@@ -21,22 +18,7 @@ export default function Consent() {
           <p>• The photos and your answers are used <b>only for your claim</b>.</p>
           <p>• You can ask questions at any time, and you can stop the call at any time.</p>
         </div>
-        <label className="block text-xs font-medium text-slate-500 mt-4 mb-1">Please type your full name</label>
-        <input className="w-full border border-slate-300 rounded-xl px-3 py-3 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" />
-        <label className="flex items-start gap-2 mt-3 text-sm text-slate-700">
-          <input type="checkbox" className="mt-1" checked={tick} onChange={(e) => setTick(e.target.checked)} />
-          I understand and agree
-        </label>
-        <button
-          disabled={!name || !tick}
-          className="mt-5 w-full bg-blue-600 disabled:bg-slate-300 text-white rounded-xl py-3.5 font-semibold"
-          onClick={() => router.push(`/c/${token}/check`)}
-        >
-          I agree — continue
-        </button>
-        <button className="mt-2 w-full text-slate-500 text-sm py-2" onClick={() => alert("No problem — a person will contact you about other options (mock; assessor notified).")}>
-          I don&apos;t agree
-        </button>
+        <ConsentForm token={token} />
       </div>
     </ClientShell>
   );

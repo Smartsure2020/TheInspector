@@ -1,23 +1,26 @@
-"use client";
-// S16 — Completed report page + manager review actions (static mock, 1A; real flow 1I).
-import { useParams } from "next/navigation";
+// S16 — Report page with version history (DB-backed, Chunk 1B).
+// Manager approve/return remains a clean stub until Chunk 1I.
 import { StaffShell, StatusChip } from "@/components/Chrome";
-import { jobById, clientById, userById } from "@/lib/fixtures";
-import { useRole } from "@/lib/role";
+import { getJob, getClient, listReports } from "@/lib/data";
+import { ManagerStub } from "@/components/ManagerStub";
 
-export default function CompletedReport() {
-  const { id } = useParams<{ id: string }>();
-  const job = jobById(id);
-  const { user } = useRole();
-  if (!job) return <StaffShell title="Report"><p>Unknown job.</p></StaffShell>;
+export const dynamic = "force-dynamic";
 
-  const approved = job.status === "Report completed";
+export default async function CompletedReport({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const job = getJob(id);
+  if (!job) return <StaffShell title="Report"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
+  const client = getClient(job.client_id);
+  const reports = listReports(id);
+  const latest = reports.at(-1);
 
   return (
-    <StaffShell title={`Report — ${job.jobNumber}`}>
+    <StaffShell title={`Report — ${job.job_number}`}>
       <div className="max-w-2xl">
         <div className="flex items-center gap-3 mb-4">
-          <h1 className="text-xl font-semibold text-slate-800">Report {approved ? "v2 (approved)" : "v1 (submitted)"}</h1>
+          <h1 className="text-xl font-semibold text-slate-800">
+            {latest ? `Report v${latest.version} (${latest.status})` : "No report yet"}
+          </h1>
           <StatusChip status={job.status} />
         </div>
 
@@ -26,34 +29,28 @@ export default function CompletedReport() {
             PDF preview placeholder — generation arrives in Chunk 1H
           </div>
           <div className="flex gap-2 mt-3">
-            <button className="bg-slate-800 text-white rounded-lg px-4 py-2 text-sm" onClick={() => alert("PDF download arrives in Chunk 1H.")}>Download PDF</button>
-            <button className="bg-white border border-slate-300 rounded-lg px-4 py-2 text-sm" onClick={() => alert("Evidence pack (ZIP + appendix) arrives in Chunk 1H.")}>Download evidence pack</button>
+            <button disabled className="bg-slate-300 text-white rounded-lg px-4 py-2 text-sm cursor-not-allowed" title="Chunk 1H">Download PDF</button>
+            <button disabled className="bg-white border border-slate-200 text-slate-400 rounded-lg px-4 py-2 text-sm cursor-not-allowed" title="Chunk 1H">Download evidence pack</button>
           </div>
         </div>
 
-        {user?.role === "manager" && !approved && (
-          <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
-            <h2 className="text-sm font-semibold text-violet-800 mb-2">Manager review (wires up in Chunk 1I)</h2>
-            <p className="text-xs text-slate-600 mb-3">
-              Assessor: {userById(job.assessorId)?.name} · Client: {clientById(job.clientId)?.name} · Side-by-side review view (report + checklist + evidence) builds in 1I.
-            </p>
-            <div className="flex gap-2">
-              <button className="bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm font-semibold" onClick={() => alert("Approve locks the version and finalises artefacts — Chunk 1I.")}>Approve</button>
-              <button className="bg-rose-600 text-white rounded-lg px-4 py-2 text-sm font-semibold" onClick={() => alert("Return with per-section comments — Chunk 1I.")}>Return with comments</button>
-            </div>
+        {reports.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+            <h2 className="text-sm font-semibold text-slate-700 mb-2">Version history</h2>
+            {reports.map((r) => (
+              <div key={r.id} className="text-xs text-slate-600 flex gap-2 py-1 border-b border-slate-50 last:border-0">
+                <span className="font-medium">v{r.version}</span>
+                <span className={`rounded-full px-2 ${r.status === "approved" ? "bg-green-100 text-green-800" : r.status === "returned" ? "bg-rose-100 text-rose-800" : "bg-violet-100 text-violet-800"}`}>{r.status}</span>
+                {r.submitted_at && <span>submitted {r.submitted_at} by {r.submitted_by}</span>}
+                {r.reviewed_by && <span>· reviewed by {r.reviewed_by}</span>}
+                {r.review_comments && <span className="text-rose-600">· comments: {Object.values(JSON.parse(r.review_comments)).join(" ")}</span>}
+              </div>
+            ))}
           </div>
         )}
 
-        {approved && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
-            Approved by {users_manager()} — report locked. Version history: v1 returned · v2 approved. Reopen (manager only, reason logged) arrives in 1I.
-          </div>
-        )}
+        <ManagerStub jobStatus={job.status} assessorName={job.assessor_name ?? "—"} clientName={client?.full_name ?? "—"} />
       </div>
     </StaffShell>
   );
-}
-
-function users_manager() {
-  return "Craig Demo";
 }
