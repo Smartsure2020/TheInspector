@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "reset:demo": "node scripts/reset-demo.mjs",
+    "qa:smoke": "node scripts/qa-smoke.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

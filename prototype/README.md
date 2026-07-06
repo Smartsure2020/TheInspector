@@ -11,14 +11,17 @@ npm run dev        # http://localhost:3000
 ```
 
 The SQLite database self-creates and self-seeds at `db/inspector.db` on first
-request. Delete `db/inspector.db*` to reset to seed data. Client uploads land in
-`db/uploads/` (gitignored).
+request. To reset to the pristine seeded demo book: stop the dev server, run
+`npm run reset:demo`, start the dev server again (see `../phase1/demo-guide.md`).
+Client uploads land in `db/uploads/` (gitignored).
 
 ## Entry points
 
 - `/` — placeholder role picker (Admin / Assessor / Manager). No login exists in
   Phase 1 by design; this is mock access (AC9).
-- `/c/demo-geyser`, `/c/demo-acc` — demo client links (long-dated seeds).
+- Demo client links (long-dated seeds): `/c/demo-storm` (primary storm demo),
+  `/c/demo-acc` (accidental), `/c/demo-theft` (theft), `/c/demo-survey`
+  (residential survey), `/c/demo-live` (in-progress live-room job).
 - `/c/demo-upload/upload` — demo missing-evidence upload page (job INS-2026-0006).
 - `/spike/device.html`, `/spike/daily.html`, `/spike/livekit.html` — video-provider
   spike harnesses (see `../phase1/spike-report.md`). Phones need HTTPS —
@@ -35,8 +38,10 @@ safeguard gate.
 
 ## Scope guards (binding)
 
-No production auth/MFA/permissions, no POPIA/storage/audit hardening, no surveys,
-no fire claims, no AI, no integrations, no video recording, no WhatsApp. Chunk 1D
-(live room) is blocked until the SP1–SP10 device spike verdict is approved.
+No production auth/MFA/permissions, no POPIA/storage/audit hardening, no AI,
+no integrations, no video recording, no WhatsApp, no full template builder.
+Surveys and multi-peril claim templates are ACTIVE as of Chunk 1F (v0.1-1F,
+pending assessor workshop sign-off); fire remains reference-only /
+physical-first and is not bookable as a virtual assessment.
 Provider secrets/tokens never go in the repo — `.env.local` only (gitignored);
 the spike harnesses take keys via on-page inputs at runtime.
