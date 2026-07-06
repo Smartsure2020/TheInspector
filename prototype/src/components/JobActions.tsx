@@ -2,7 +2,7 @@
 // Working workflow actions (Chunk 1B). Buttons appear per legal transition;
 // the server-side guard in data.ts remains the authority.
 import Link from "next/link";
-import { assignAction, cancelAction, noShowAction, submitReportAction, transitionAction } from "@/lib/actions";
+import { assignAction, cancelAction, noShowAction, transitionAction } from "@/lib/actions";
 import { JobStatus } from "@/lib/types";
 import { useState, useTransition } from "react";
 
@@ -75,19 +75,21 @@ export function JobActions({ jobId, status, assessors, hasAssessor }: {
         )}
 
         {status === "Awaiting report" && (
-          <button disabled={pending} className={`${btn} bg-violet-600 text-white`} onClick={() => run(() => submitReportAction(jobId))}>
-            Submit report for review
-          </button>
+          <Link href={`/jobs/${jobId}/report`} className={`${btn} bg-violet-600 text-white inline-block`}>
+            Open report builder
+          </Link>
         )}
 
         {status === "Returned for correction" && (
-          <button disabled={pending} className={`${btn} bg-orange-600 text-white`} onClick={() => run(() => transitionAction(jobId, "Awaiting report"))}>
-            Resume editing → Awaiting report
-          </button>
+          <Link href={`/jobs/${jobId}/report`} className={`${btn} bg-orange-600 text-white inline-block`}>
+            Revise report (returned with comments)
+          </Link>
         )}
 
         {status === "Report submitted" && (
-          <span className="text-xs text-slate-500">In manager review queue — approve/return arrives in Chunk 1I.</span>
+          <Link href={`/jobs/${jobId}/report/final`} className={`${btn} bg-violet-600 text-white inline-block`}>
+            In manager review — open report
+          </Link>
         )}
 
         {!terminal && <Cancel jobId={jobId} pending={pending} run={run} btn={btn} />}

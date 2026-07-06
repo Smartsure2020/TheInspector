@@ -24,9 +24,10 @@ export interface EventRow { id: string; job_id: string; actor: string; actor_rol
 export interface EvidenceRow {
   id: string; job_id: string; item_key: string | null; kind: string; label: string;
   captured_at: string; is_featured: number; hue: number | null; discarded_at: string | null;
+  file_key: string | null; mime_type: string | null;
 }
 export interface ReportRow {
-  id: string; job_id: string; version: number; status: string; submitted_at: string | null;
+  id: string; job_id: string; version: number; status: string; content: string | null; submitted_at: string | null;
   submitted_by: string | null; reviewed_at: string | null; reviewed_by: string | null; review_comments: string | null;
 }
 export interface TemplateRow { id: string; name: string; claim_type: string; version: string; is_reference_only: number; structure: string }

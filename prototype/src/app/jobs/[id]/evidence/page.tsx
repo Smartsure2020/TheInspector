@@ -1,6 +1,8 @@
-// S13 — Evidence gallery (DB-backed reads, Chunk 1B; edit actions arrive in 1G).
+// S13 — Evidence gallery (Chunk 1E polish): grouped by checklist section,
+// relabel/refile/feature controls, missing panel, upload states.
 import Link from "next/link";
-import { StaffShell, PhotoTile } from "@/components/Chrome";
+import { StaffShell } from "@/components/Chrome";
+import { EvidenceCard, ItemOption } from "@/components/EvidenceTools";
 import { getJob, getTemplate, listEvidence, missingItems, templateItemByKey } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -13,22 +15,31 @@ export default async function EvidenceGallery({ params }: { params: Promise<{ id
   const items = listEvidence(id);
   const unfiled = items.filter((e) => !e.item_key);
   const missing = missingItems(id);
+  const locked = job.status === "Report completed" || job.status === "Cancelled";
+  const featuredCount = items.filter((e) => e.is_featured).length;
+
+  const itemOptions: ItemOption[] = tpl.sections.flatMap((s) =>
+    s.items.map((i) => ({ key: i.key, label: `${s.title} — ${i.prompt.slice(0, 48)}` }))
+  );
 
   return (
     <StaffShell title={`Evidence — ${job.job_number}`}>
       <div className="grid md:grid-cols-[1fr_280px] gap-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800 mb-3">Evidence gallery</h1>
+          <div className="flex items-center gap-3 mb-3">
+            <h1 className="text-xl font-semibold text-slate-800">Evidence gallery</h1>
+            <span className="text-xs text-slate-400">{items.length} items · {featuredCount} featured for report</span>
+            {locked && <span className="text-xs bg-slate-800 text-white rounded-full px-2 py-0.5">locked — {job.status.toLowerCase()}</span>}
+          </div>
 
           {unfiled.length > 0 && (
             <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 mb-4">
-              <h2 className="text-sm font-semibold text-amber-800 mb-2">Unfiled captures — file these first</h2>
-              <div className="flex gap-3 flex-wrap">
+              <h2 className="text-sm font-semibold text-amber-800 mb-2">
+                Unfiled captures — file these first <span className="font-normal text-amber-600">(use the item dropdown on each card)</span>
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {unfiled.map((e) => (
-                  <div key={e.id} className="w-40">
-                    <PhotoTile hue={e.hue ?? 200} label={e.label} />
-                    <span className="text-[10px] text-slate-400">Refile action arrives in Chunk 1G</span>
-                  </div>
+                  <EvidenceCard key={e.id} jobId={id} evidence={e} itemOptions={itemOptions} locked={locked} />
                 ))}
               </div>
             </div>
@@ -39,39 +50,21 @@ export default async function EvidenceGallery({ params }: { params: Promise<{ id
             if (inSection.length === 0) return null;
             return (
               <div key={s.key} className="mb-5">
-                <h2 className="text-sm font-semibold text-slate-600 mb-2">{s.title}</h2>
+                <h2 className="text-sm font-semibold text-slate-600 mb-2">
+                  {s.title} <span className="font-normal text-slate-400">({inSection.length})</span>
+                </h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {inSection.map((e) => (
-                    <div key={e.id} className="bg-white rounded-lg border border-slate-200 p-2">
-                      {(e as unknown as { file_key: string | null }).file_key ? (
-                        (e as unknown as { mime_type: string | null }).mime_type === "application/pdf" ? (
-                          <a href={`/api/files/${e.id}`} target="_blank" className="h-32 w-full rounded-md bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-medium">
-                            📄 PDF — open
-                          </a>
-                        ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={`/api/files/${e.id}`} alt={e.label} className="h-32 w-full object-cover rounded-md" />
-                        )
-                      ) : (
-                        <PhotoTile hue={e.hue ?? 200} label={e.label} />
-                      )}
-                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
-                        <span className={`rounded px-1 ${e.kind === "highres_client_photo" ? "bg-violet-100 text-violet-700" : e.kind === "client_upload" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100"}`}>
-                          {e.kind === "highres_client_photo" ? "HIGH-RES" : e.kind === "client_upload" ? "UPLOAD" : "FRAME"}
-                        </span>
-                        {!!e.is_featured && <span className="text-amber-600 font-medium">★ featured</span>}
-                        <span className="ml-auto">{e.captured_at}</span>
-                      </div>
-                    </div>
+                    <EvidenceCard key={e.id} jobId={id} evidence={e} itemOptions={itemOptions} locked={locked} />
                   ))}
                 </div>
               </div>
             );
           })}
-          {items.length === 0 && <p className="text-sm text-slate-500">No evidence on this job yet (captures arrive with the live room, Chunk 1E; see INS-2026-0006 / 0010 for seeded examples).</p>}
+          {items.length === 0 && <p className="text-sm text-slate-500">No evidence on this job yet — captures land here live from the assessment room.</p>}
         </div>
 
-        <aside className="h-fit">
+        <aside className="h-fit space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <h2 className="text-sm font-semibold text-slate-700 mb-2">Missing evidence</h2>
             {missing.length ? (
@@ -89,11 +82,24 @@ export default async function EvidenceGallery({ params }: { params: Promise<{ id
                     Preview client upload page
                   </Link>
                 )}
-                <p className="text-[10px] text-slate-400 mt-2">Upload-request creation + real uploads arrive in Chunk 1G.</p>
+                <p className="text-[10px] text-slate-400 mt-2">
+                  Client uploads arriving against these items clear them on the checklist; they appear in the grid as UPLOAD.
+                </p>
               </>
             ) : (
               <p className="text-xs text-slate-400">Nothing flagged missing.</p>
             )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <h2 className="text-sm font-semibold text-slate-700 mb-2">Report</h2>
+            <p className="text-[11px] text-slate-500 mb-2">★ featured items appear as figures in the report; everything stays in the evidence index.</p>
+            <Link href={`/jobs/${id}/report`} className="block text-center bg-slate-800 hover:bg-slate-700 text-white rounded-lg px-3 py-2 text-xs font-semibold">
+              Open report builder →
+            </Link>
+            <a href={`/api/pack/${id}`} className="block text-center bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-xs font-semibold mt-2">
+              Download evidence pack (.zip)
+            </a>
           </div>
         </aside>
       </div>

@@ -113,14 +113,120 @@ export async function transitionAction(jobId: string, to: JobStatus) {
   revalidatePath(`/jobs/${jobId}`); revalidatePath("/admin"); revalidatePath("/assessor"); revalidatePath("/manager");
 }
 
-export async function submitReportAction(jobId: string) {
+// ---------- report lifecycle (Chunk 1E — draft, submit, review) ----------
+
+/** Upsert the working draft's narrative (autosave from the report editor). */
+export async function saveReportDraftAction(jobId: string, narrative: Record<string, string>) {
   const a = await actor();
-  const maxV = (db().prepare("SELECT COALESCE(MAX(version),0) AS v FROM reports WHERE job_id=?").get(jobId) as { v: number }).v;
-  db().prepare("INSERT INTO reports (id,job_id,version,status,submitted_at,submitted_by) VALUES (?,?,?,?,?,?)")
-    .run(uuid(), jobId, maxV + 1, "submitted", nowIso(), a.name);
-  changeStatus(jobId, "Report submitted", a, "report_submitted", { version: maxV + 1 });
-  revalidatePath(`/jobs/${jobId}`); revalidatePath("/manager");
+  const draft = db().prepare("SELECT id FROM reports WHERE job_id=? AND status='draft' ORDER BY version DESC LIMIT 1")
+    .get(jobId) as { id: string } | undefined;
+  const content = JSON.stringify({ narrative });
+  if (draft) {
+    db().prepare("UPDATE reports SET content=? WHERE id=?").run(content, draft.id);
+  } else {
+    const maxV = (db().prepare("SELECT COALESCE(MAX(version),0) AS v FROM reports WHERE job_id=?").get(jobId) as { v: number }).v;
+    db().prepare("INSERT INTO reports (id,job_id,version,status,content) VALUES (?,?,?,?,?)")
+      .run(uuid(), jobId, maxV + 1, "draft", content);
+    logEvent(jobId, a, "report_draft_started", { version: maxV + 1 });
+  }
+}
+
+/**
+ * Submit for review. Snapshots the narrative PLUS the auto sections
+ * (particulars, limitations, evidence index) so the version is self-contained;
+ * the Limitations section is generated here and cannot be removed.
+ * From "Returned for correction" this resubmits (via Awaiting report).
+ */
+export async function submitReportAction(jobId: string, narrative?: Record<string, string>) {
+  const a = await actor();
+  const job = getJob(jobId);
+  if (!job) throw new Error("Unknown job");
+  const { buildReportModel } = await import("./report");
+  const model = buildReportModel(jobId)!;
+  const finalNarrative = { ...model.prefill, ...(narrative ?? {}) };
+
+  // Fold any existing draft into this submission; otherwise take a new version.
+  const draft = db().prepare("SELECT id, version, content FROM reports WHERE job_id=? AND status='draft' ORDER BY version DESC LIMIT 1")
+    .get(jobId) as { id: string; version: number; content: string | null } | undefined;
+  if (!narrative && draft?.content) {
+    try { Object.assign(finalNarrative, (JSON.parse(draft.content) as { narrative?: object }).narrative ?? {}); } catch { /* prefill stands */ }
+  }
+  const content = JSON.stringify({
+    narrative: finalNarrative,
+    auto: {
+      cover: model.cover, particulars: model.particulars, limitations: model.limitations,
+      evidenceIndex: model.evidenceIndex, stats: model.stats,
+    },
+  });
+
+  const now = nowIso();
+  let version: number;
+  if (draft) {
+    db().prepare("UPDATE reports SET status='submitted', content=?, submitted_at=?, submitted_by=? WHERE id=?")
+      .run(content, now, a.name, draft.id);
+    version = draft.version;
+  } else {
+    const maxV = (db().prepare("SELECT COALESCE(MAX(version),0) AS v FROM reports WHERE job_id=?").get(jobId) as { v: number }).v;
+    version = maxV + 1;
+    db().prepare("INSERT INTO reports (id,job_id,version,status,content,submitted_at,submitted_by) VALUES (?,?,?,?,?,?,?)")
+      .run(uuid(), jobId, version, "submitted", content, now, a.name);
+  }
+
+  if (job.status === "Returned for correction") changeStatus(jobId, "Awaiting report", a, "report_revision_started", { version });
+  changeStatus(jobId, "Report submitted", a, "report_submitted", { version });
+  revalidatePath(`/jobs/${jobId}`); revalidatePath("/manager"); revalidatePath(`/jobs/${jobId}/report`); revalidatePath(`/jobs/${jobId}/report/final`);
   redirect(`/jobs/${jobId}/report/final`);
+}
+
+/** Manager verdict on the submitted version. Approve locks the job (Report completed). */
+export async function reviewReportAction(jobId: string, verdict: "approve" | "return", comments: string) {
+  const a = await actor();
+  if (a.role !== "manager") throw new Error("Only the manager role can review reports (switch role on the home page).");
+  const submitted = db().prepare("SELECT id, version FROM reports WHERE job_id=? AND status='submitted' ORDER BY version DESC LIMIT 1")
+    .get(jobId) as { id: string; version: number } | undefined;
+  if (!submitted) throw new Error("No submitted report to review.");
+  const now = nowIso();
+  if (verdict === "approve") {
+    db().prepare("UPDATE reports SET status='approved', reviewed_at=?, reviewed_by=?, review_comments=? WHERE id=?")
+      .run(now, a.name, comments ? JSON.stringify({ general: comments }) : null, submitted.id);
+    changeStatus(jobId, "Report completed", a, "report_approved", { version: submitted.version });
+  } else {
+    if (!comments.trim()) throw new Error("Return requires comments for the assessor.");
+    db().prepare("UPDATE reports SET status='returned', reviewed_at=?, reviewed_by=?, review_comments=? WHERE id=?")
+      .run(now, a.name, JSON.stringify({ general: comments }), submitted.id);
+    changeStatus(jobId, "Returned for correction", a, "report_returned", { version: submitted.version });
+  }
+  revalidatePath(`/jobs/${jobId}`); revalidatePath("/manager"); revalidatePath("/assessor"); revalidatePath(`/jobs/${jobId}/report/final`);
+}
+
+// ---------- evidence curation (Chunk 1E — relabel / refile / feature) ----------
+export async function updateEvidenceAction(
+  jobId: string,
+  evidenceId: string,
+  patch: { label?: string; itemKey?: string | null; featured?: boolean }
+) {
+  const a = await actor();
+  const job = getJob(jobId);
+  if (!job) throw new Error("Unknown job");
+  if (job.status === "Report completed" || job.status === "Cancelled")
+    throw new Error(`Job is ${job.status.toLowerCase()} — evidence is locked.`);
+  const row = db().prepare("SELECT id, item_key, label FROM evidence_items WHERE id=? AND job_id=?")
+    .get(evidenceId, jobId) as { id: string; item_key: string | null; label: string } | undefined;
+  if (!row) throw new Error("Unknown evidence item");
+
+  if (patch.label !== undefined && patch.label.trim() && patch.label !== row.label) {
+    db().prepare("UPDATE evidence_items SET label=? WHERE id=?").run(patch.label.trim(), evidenceId);
+    logEvent(jobId, a, "evidence_relabelled", { evidence_id: evidenceId, from: row.label, to: patch.label.trim() });
+  }
+  if (patch.itemKey !== undefined && patch.itemKey !== row.item_key) {
+    db().prepare("UPDATE evidence_items SET item_key=? WHERE id=?").run(patch.itemKey, evidenceId);
+    logEvent(jobId, a, "evidence_refiled", { evidence_id: evidenceId, from: row.item_key ?? "UNFILED", to: patch.itemKey ?? "UNFILED" });
+  }
+  if (patch.featured !== undefined) {
+    db().prepare("UPDATE evidence_items SET is_featured=? WHERE id=?").run(patch.featured ? 1 : 0, evidenceId);
+    logEvent(jobId, a, patch.featured ? "evidence_featured" : "evidence_unfeatured", { evidence_id: evidenceId });
+  }
+  revalidatePath(`/jobs/${jobId}/evidence`); revalidatePath(`/jobs/${jobId}/report`); revalidatePath(`/jobs/${jobId}/report/final`);
 }
 
 // Client-side events (actor = client_link; identified by possession of the token).
@@ -299,6 +405,12 @@ export async function uploadEvidenceAction(
   logEvent(info.job.id, CLIENT_ACTOR,
     kind === "highres_client_photo" ? "highres_photo_received" : "upload_received",
     { evidence_id: id, item_key: itemKey, bytes: file.size, mime: file.type });
+  // A received upload resolves the item's missing flag (Chunk 1E).
+  const resolved = db().prepare(
+    "UPDATE checklist_responses SET state='resolved', updated_at=? WHERE job_id=? AND item_key=? AND state='missing'"
+  ).run(nowIso(), info.job.id, itemKey);
+  if (resolved.changes > 0)
+    logEvent(info.job.id, CLIENT_ACTOR, "missing_item_resolved", { item_key: itemKey, evidence_id: id });
   revalidatePath(`/c/${token}/upload`);
   revalidatePath(`/jobs/${info.job.id}/evidence`);
   revalidatePath(`/jobs/${info.job.id}`);

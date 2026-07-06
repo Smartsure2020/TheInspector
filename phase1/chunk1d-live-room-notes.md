@@ -63,3 +63,11 @@ Prototype test hooks (query params, harmless in demo use):
    not this UI) needs an HTTPS URL — same tunnel/deploy options as the spike
    guide; do it once a provider adapter exists or via the P2P adapter on one
    Wi-Fi network.
+
+## Deferred gate — mobile live-room verification (NOT cancelled)
+
+**Status 2026-07-06:** DEFERRED by instruction. Device *capability* was proven
+manually on Android/iPhone/laptop; the live-room *UI* has not yet been run on
+real phones. This remains a hard gate before any pilot/production step:
+re-open it when a provider adapter lands or when an HTTPS tunnel test of the
+P2P room is scheduled. No further spike/mobile testing is to be run until then.
