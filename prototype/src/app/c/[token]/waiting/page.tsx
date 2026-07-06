@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { ClientShell } from "@/components/Chrome";
 import { resolveToken, getClient } from "@/lib/data";
 import { ClientPing } from "@/components/ClientBits";
+import { WaitingLive } from "@/components/WaitingLive";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function WaitingRoom({ params }: { params: Promise<{ token:
   return (
     <ClientShell>
       <ClientPing token={token} kind="client_waiting" />
+      {info.job && <WaitingLive token={token} jobId={info.job.id} />}
       <div className="mt-20 text-center">
         <div className="animate-pulse text-5xl">🟢</div>
         <h1 className="text-xl font-bold text-slate-800 mt-4">Thanks, {first}</h1>
@@ -26,7 +28,9 @@ export default async function WaitingRoom({ params }: { params: Promise<{ token:
           <br />
           Please keep this screen open — you don&apos;t need to do anything.
         </p>
-        <p className="text-xs text-slate-400 mt-6">Waiting quietly uses almost no data.</p>
+        <p className="text-xs text-slate-400 mt-6">
+          You&apos;ll be connected automatically when {assessor} lets you in.
+        </p>
         <Link href={`/c/${token}/session`} className="inline-block mt-10 text-[11px] text-slate-400 underline">
           (prototype shortcut: enter session view)
         </Link>

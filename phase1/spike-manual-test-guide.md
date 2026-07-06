@@ -1,6 +1,11 @@
 # Device Spike — Manual Testing Guide (no local certificates)
 
-**Status:** Spike PAUSED until a tester with real phones runs this guide.
+**Status:** COMPLETE (manual run, 2026-07-06) — device capability verified on
+Android, iPhone and laptop; results sufficient to continue the prototype.
+Daily.co provider testing DEFERRED (requires payment — excluded by instruction);
+LiveKit untested (only if free testing is possible). **No provider selected** —
+Chunk 1D proceeds on the provider-agnostic adapter (see
+`prototype/src/lib/video/adapter.ts` and `phase1/chunk1d-live-room-notes.md`).
 **Laptop policy:** no certificate generation/installation on the work laptop —
 both options below terminate HTTPS elsewhere. `--experimental-https` is banned.
 **Rules (binding):** SP1–SP10 may only be filled from real-device evidence ·
@@ -15,13 +20,13 @@ fake/demo data only, no real-client data, no new scope.
 
 1. **Phones:** a real iPhone (Safari) and a mid-range Android (Chrome). Charge them.
 2. **Daily.co:** free account at dashboard.daily.co → Rooms → Create room →
-   copy the room URL (`https://YOURDOMAIN.daily.co/YOURROOM`).
+   copy the room URL (`https://YOURDOMAIN.daily.co/YOURROOM`). 
 3. **LiveKit Cloud:** free account at cloud.livekit.io → create project → note the
-   `wss://….livekit.cloud` URL → Settings → Keys → generate **two access tokens**
+   `wss://….livekit.cloud`  URL → Settings → Keys → generate **two access tokens**
    for the same room name (dashboard token tool), one per device.
    Keep both tokens in a note on your phone/paper — **never commit them or put
    them in `.env` files; the harness pages take them as on-page inputs only.**
-4. **Evidence folder:** create `phase1\spike-evidence\` — all screenshots go here,
+   4. **Evidence folder:** create `phase1\spike-evidence\` — all screenshots go here,
    named `SPn-{device}-{provider}.png` (e.g. `SP3-iphone-daily.png`).
 
 ---
@@ -61,9 +66,9 @@ No account, no admin rights, no certificates:
 2. Download the single-file Cloudflare Tunnel binary (no install):
    https://github.com/cloudflare/cloudflared/releases/latest →
    `cloudflared-windows-amd64.exe` → save to Downloads.
-3. Run: `cloudflared-windows-amd64.exe tunnel --url http://localhost:3000`
+3. Run: `cloudflared-windows-amd64.exe tunnel --url http://localhost:3000` 
 4. It prints a URL like `https://random-words.trycloudflare.com`. That is `{BASE}`.
-   (URL changes each run — rerun = re-send to phones.)
+   (URL changes each run — rerun = re-send to phones.) (https://capture-zoo-colon-gnome.trycloudflare.com  )
 5. Phones: open `{BASE}` in Safari/Chrome over **mobile data** (that's the real
    4G test) and also once on Wi-Fi.
 6. Alternative: ngrok (`ngrok http 3000`) — needs a free account + authtoken.

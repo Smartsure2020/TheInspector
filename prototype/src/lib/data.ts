@@ -186,6 +186,32 @@ export const getEvidence = (id: string) =>
   db().prepare("SELECT * FROM evidence_items WHERE id=?").get(id) as
     (EvidenceRow & { file_key: string | null; mime_type: string | null }) | undefined;
 
+// ---------- live session support (Chunk 1D) ----------
+export interface SessionRow {
+  id: string; job_id: string; assessor_id: string | null; started_at: string | null;
+  ended_at: string | null; client_joined_at: string | null; reconnect_count: number;
+  consent_name: string | null;
+}
+export const getActiveSession = (jobId: string) =>
+  db().prepare("SELECT * FROM sessions WHERE job_id=? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1")
+    .get(jobId) as SessionRow | undefined;
+
+export interface ResponseRow {
+  item_key: string; answer: string | null; note: string | null;
+  concern_flag: number; concern_note: string | null;
+  state: string; missing_reason: string | null;
+}
+export const listResponses = (jobId: string) =>
+  db().prepare("SELECT item_key, answer, note, concern_flag, concern_note, state, missing_reason FROM checklist_responses WHERE job_id=?")
+    .all(jobId) as ResponseRow[];
+
+export const evidenceCountByItem = (jobId: string) => {
+  const rows = db().prepare(
+    "SELECT item_key, COUNT(*) AS n FROM evidence_items WHERE job_id=? AND discarded_at IS NULL AND item_key IS NOT NULL GROUP BY item_key"
+  ).all(jobId) as { item_key: string; n: number }[];
+  return Object.fromEntries(rows.map((r) => [r.item_key, r.n])) as Record<string, number>;
+};
+
 export const nextJobNumber = () => {
   const n = (db().prepare("SELECT COUNT(*) AS n FROM jobs").get() as { n: number }).n + 1;
   return `INS-2026-${String(n).padStart(4, "0")}`;

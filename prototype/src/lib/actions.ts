@@ -161,10 +161,124 @@ export async function requestNewLinkAction(token: string) {
   if (jobId) logEvent(jobId, CLIENT_ACTOR, "client_requested_new_link", {});
 }
 
+// ---------- live session actions (Chunk 1D) ----------
+
+/** Assessor admits the client: ensures a sessions row + In progress status. */
+export async function admitClientAction(jobId: string): Promise<{ sessionId: string }> {
+  const a = await actor();
+  const { getActiveSession, getJob: gj } = await import("./data");
+  let session = getActiveSession(jobId);
+  const job = gj(jobId);
+  if (!job) throw new Error("Unknown job");
+  const now = nowIso();
+  if (!session) {
+    const id = uuid();
+    db().prepare(`INSERT INTO sessions (id, job_id, assessor_id, started_at, client_joined_at, reconnect_count)
+      VALUES (?,?,?,?,?,?)`).run(id, jobId, a.id === "system" ? null : a.id, now, now, 0);
+    session = getActiveSession(jobId)!;
+    logEvent(jobId, a, "session_started", { session_id: id });
+  } else if (!session.client_joined_at) {
+    db().prepare("UPDATE sessions SET client_joined_at=? WHERE id=?").run(now, session.id);
+  }
+  if (job.status === "Scheduled") changeStatus(jobId, "In progress", a);
+  revalidatePath(`/jobs/${jobId}`); revalidatePath("/admin"); revalidatePath("/assessor");
+  return { sessionId: session.id };
+}
+
+/** Assessor ends the session; outcome decides the next status. */
+export async function endSessionAction(jobId: string, outcome: "Awaiting evidence" | "Awaiting report") {
+  const a = await actor();
+  const { getActiveSession } = await import("./data");
+  const session = getActiveSession(jobId);
+  const now = nowIso();
+  if (session) db().prepare("UPDATE sessions SET ended_at=? WHERE id=?").run(now, session.id);
+  logEvent(jobId, a, "session_ended", { session_id: session?.id, outcome });
+  changeStatus(jobId, outcome, a);
+  revalidatePath(`/jobs/${jobId}`); revalidatePath("/admin"); revalidatePath("/assessor");
+}
+
+/** Network events from the room (reconnect telemetry). */
+export async function sessionNetworkEventAction(jobId: string, kind: "client_disconnected" | "client_reconnected") {
+  const a = await actor();
+  const { getActiveSession } = await import("./data");
+  const session = getActiveSession(jobId);
+  if (kind === "client_reconnected" && session)
+    db().prepare("UPDATE sessions SET reconnect_count = reconnect_count + 1 WHERE id=?").run(session.id);
+  logEvent(jobId, a, kind, { session_id: session?.id });
+}
+
+/** Upsert a checklist response field set (answer / note / concern / missing). */
+export async function saveResponseAction(
+  jobId: string,
+  itemKey: string,
+  patch: {
+    answer?: unknown;
+    note?: string;
+    concernFlag?: boolean;
+    concernNote?: string;
+    missing?: { flag: boolean; reason?: string };
+  }
+) {
+  const a = await actor();
+  const { getActiveSession } = await import("./data");
+  const session = getActiveSession(jobId);
+  const now = nowIso();
+  const existing = db().prepare("SELECT id, state FROM checklist_responses WHERE job_id=? AND item_key=?")
+    .get(jobId, itemKey) as { id: string; state: string } | undefined;
+  const id = existing?.id ?? uuid();
+  if (!existing)
+    db().prepare("INSERT INTO checklist_responses (id, job_id, item_key, state, updated_at) VALUES (?,?,?,?,?)")
+      .run(id, jobId, itemKey, "pending", now);
+
+  if (patch.answer !== undefined) {
+    db().prepare("UPDATE checklist_responses SET answer=?, state=CASE WHEN state IN ('pending','answered') THEN 'answered' ELSE state END, session_id=?, updated_at=? WHERE id=?")
+      .run(JSON.stringify(patch.answer), session?.id ?? null, now, id);
+    logEvent(jobId, a, "response_recorded", { item_key: itemKey });
+  }
+  if (patch.note !== undefined)
+    db().prepare("UPDATE checklist_responses SET note=?, updated_at=? WHERE id=?").run(patch.note, now, id);
+  if (patch.concernFlag !== undefined) {
+    db().prepare("UPDATE checklist_responses SET concern_flag=?, concern_note=?, updated_at=? WHERE id=?")
+      .run(patch.concernFlag ? 1 : 0, patch.concernNote ?? null, now, id);
+    logEvent(jobId, a, patch.concernFlag ? "concern_flagged" : "concern_cleared", { item_key: itemKey });
+  }
+  if (patch.missing !== undefined) {
+    db().prepare("UPDATE checklist_responses SET state=?, missing_reason=?, updated_at=? WHERE id=?")
+      .run(patch.missing.flag ? "missing" : "pending", patch.missing.flag ? (patch.missing.reason ?? "not available") : null, id ? now : now, id);
+    logEvent(jobId, a, patch.missing.flag ? "item_flagged_missing" : "item_missing_cleared",
+      { item_key: itemKey, reason: patch.missing.reason });
+  }
+}
+
+/** Save a frame capture from the assessor's room (optimistic UI uploads here in background). */
+export async function saveCaptureAction(jobId: string, itemKey: string | null, label: string, formData: FormData): Promise<{ id: string }> {
+  const a = await actor();
+  const file = formData.get("file") as File | null;
+  if (!file || file.size === 0) throw new Error("Empty capture");
+  const { getActiveSession } = await import("./data");
+  const { saveUpload } = await import("./storage");
+  const session = getActiveSession(jobId);
+  const id = uuid();
+  const fileKey = saveUpload(id, file.type || "image/jpeg", Buffer.from(await file.arrayBuffer()));
+  db().prepare(`INSERT INTO evidence_items
+      (id, job_id, session_id, item_key, kind, file_key, mime_type, byte_size, label, captured_at, is_featured, sort_order)
+    VALUES (?,?,?,?,?,?,?,?,?,?,0,0)`)
+    .run(id, jobId, session?.id ?? null, itemKey, "frame_capture", fileKey, file.type || "image/jpeg", file.size, label, nowIso());
+  logEvent(jobId, a, "evidence_captured", { evidence_id: id, item_key: itemKey ?? "UNFILED" });
+  revalidatePath(`/jobs/${jobId}/evidence`);
+  return { id };
+}
+
 // Real client upload (moved into 1C by instruction; dedicated upload-request
 // creation UI remains 1G). File → local storage → evidence_items row tagged to
 // the checklist item. sha256/original_metadata stay empty (Tier B).
-export async function uploadEvidenceAction(token: string, itemKey: string, formData: FormData) {
+// `kind` added in 1D: the high-res photo flow reuses this with 'highres_client_photo'.
+export async function uploadEvidenceAction(
+  token: string,
+  itemKey: string,
+  formData: FormData,
+  kind: "client_upload" | "highres_client_photo" = "client_upload"
+) {
   const { resolveToken } = await import("./data");
   const info = resolveToken(token);
   if (!info.job || info.state === "revoked" || info.state === "invalid") throw new Error("This link is no longer active.");
@@ -176,13 +290,17 @@ export async function uploadEvidenceAction(token: string, itemKey: string, formD
 
   const id = uuid();
   const fileKey = saveUpload(id, file.type, Buffer.from(await file.arrayBuffer()));
+  const labelPrefix = kind === "highres_client_photo" ? "High-res client photo" : "Client upload";
   db().prepare(`INSERT INTO evidence_items
       (id, job_id, item_key, kind, file_key, mime_type, byte_size, label, captured_at, is_featured, sort_order)
     VALUES (?,?,?,?,?,?,?,?,?,0,0)`)
-    .run(id, info.job.id, itemKey, "client_upload", fileKey, file.type, file.size,
-      `Client upload – ${itemKey} – ${nowIso().slice(11)}`, nowIso());
-  logEvent(info.job.id, CLIENT_ACTOR, "upload_received", { item_key: itemKey, bytes: file.size, mime: file.type });
+    .run(id, info.job.id, itemKey, kind, fileKey, file.type, file.size,
+      `${labelPrefix} – ${itemKey} – ${nowIso().slice(11)}`, nowIso());
+  logEvent(info.job.id, CLIENT_ACTOR,
+    kind === "highres_client_photo" ? "highres_photo_received" : "upload_received",
+    { evidence_id: id, item_key: itemKey, bytes: file.size, mime: file.type });
   revalidatePath(`/c/${token}/upload`);
   revalidatePath(`/jobs/${info.job.id}/evidence`);
   revalidatePath(`/jobs/${info.job.id}`);
+  return { id };
 }
