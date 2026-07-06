@@ -3,6 +3,10 @@
 **Codename only — not client-facing branding. Acorn only. Role-play / anonymised
 data only; no real client data (phase0 D-09 safeguard gate).**
 
+**Handover:** read [`../handover/00-HANDOVER-README.md`](../handover/00-HANDOVER-README.md)
+(project status, code map, demo runbook, binding scope guardrails) before
+changing anything here.
+
 ## Run
 
 ```bash

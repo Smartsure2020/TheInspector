@@ -14,6 +14,11 @@
 > [`phase0/`](phase0/00-README.md) — where it conflicts with docs 01–12 below,
 > the Phase 0 pack wins.
 
+> **📦 Handover (2026-07-06):** the prototype is demo-ready (chunks 1A–1F + QA
+> pass). Start at the **[handover pack](handover/00-HANDOVER-README.md)** —
+> status, code map, demo script, scope guardrails and next steps for anyone
+> (human or model) continuing this project.
+
 ## What this is
 
 A complete planning pack for The Inspector: a standalone digital non-motor claims
