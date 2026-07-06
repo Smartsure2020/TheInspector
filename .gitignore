@@ -5,6 +5,9 @@ prototype/db/*.db
 prototype/db/*.db-*
 prototype/db/uploads/
 
+# Never generate/install local certificates on this machine (work laptop policy)
+prototype/certificates/
+
 # Secrets — never committed (provider keys/tokens live in .env.local only)
 .env
 .env.*

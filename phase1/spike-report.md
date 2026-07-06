@@ -1,8 +1,14 @@
 # Video Provider Spike Report — Daily.co vs LiveKit Cloud
 
-**Status: HARNESSES READY — ON-DEVICE RUNS NOT YET EXECUTED.**
-**Chunk 1D remains blocked** until this report is completed on real devices and the
-verdict below is approved (per the Phase 1 instruction).
+**Status: PAUSED — awaiting manual phone testing.**
+Run `spike-manual-test-guide.md` (step-by-step tester protocol, ~2h) and transcribe
+results into the matrix below. **Chunk 1D remains blocked** until this report is
+completed on real devices and the verdict is approved.
+
+**Laptop policy (2026-07-06):** no local certificate generation/installation on
+the work laptop — `next dev --experimental-https` is banned. HTTPS for phone
+testing comes from a public preview deployment (Render/Railway) or a Cloudflare
+quick tunnel; see the manual test guide, section 1.
 
 ## Why this is not yet complete
 
@@ -23,10 +29,10 @@ Served by the prototype dev server (`npm run dev` in `prototype\`):
 | Daily.co | `/spike/daily.html` | SP1/SP2 join, SP5 remote-frame capture, SP7 latency, SP8 reconnect, SP9 (via room config) |
 | LiveKit Cloud | `/spike/livekit.html` | Same tests, LiveKit SDK |
 
-**HTTPS note:** phone browsers require a secure context for camera access. Options:
-`next dev --experimental-https` (self-signed — accept the warning on the phone), or a
-tunnel (`cloudflared tunnel --url http://localhost:3000` / ngrok) for a clean HTTPS
-URL reachable on mobile data (which also enables the real-4G runs).
+**HTTPS note:** phone browsers require a secure context for camera access.
+Per laptop policy, NO local certificates: use a Cloudflare quick tunnel
+(`cloudflared tunnel --url http://localhost:3000`) or a public preview deployment —
+full steps in `spike-manual-test-guide.md` §1. Both also enable real-mobile-data runs.
 
 ## Run protocol (tester checklist)
 
