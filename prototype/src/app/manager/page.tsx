@@ -1,7 +1,7 @@
 // S4 — Manager dashboard (DB-backed, Chunk 1B; review actions land in 1I).
 import Link from "next/link";
 import { StaffShell, StatusChip } from "@/components/Chrome";
-import { listJobs, listUsers, listReports } from "@/lib/data";
+import { jobTypeLabel, listJobs, listUsers, listReports } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export default async function ManagerDashboard() {
             <div key={j.id} className="flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0">
               <div className="flex-1">
                 <Link href={`/jobs/${j.id}/report/final`} className="text-blue-700 font-medium hover:underline">{j.job_number}</Link>
-                <div className="text-xs text-slate-500">{j.client_name} · {j.assessor_name} · submitted {latest?.submitted_at ?? "—"}</div>
+                <div className="text-xs text-slate-500">{jobTypeLabel(j)}{j.job_type === "survey" ? " (survey report)" : ""} · {j.client_name} · {j.assessor_name} · submitted {latest?.submitted_at ?? "—"}</div>
               </div>
               <span className="text-xs bg-violet-100 text-violet-800 rounded-full px-2 py-0.5">v{latest?.version ?? 1}</span>
               <Link href={`/jobs/${j.id}/report/final`} className="bg-slate-800 hover:bg-slate-700 text-white rounded-lg px-3 py-1.5 text-sm">Review</Link>

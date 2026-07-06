@@ -10,6 +10,12 @@ export const dynamic = "force-dynamic";
 const plainNames: Record<string, string> = {
   "gey.docs.plumber": "Plumber's invoice — photo or PDF",
   "gey.unit.plate": "Photo of the sticker/plate on the geyser",
+  "sto.docs.quotes": "Repair quotes — photo or PDF",
+  "sto.docs.photos": "Your own photos from the day of the storm",
+  "thf.saps.case": "SAPS case number — photo of the SMS or document",
+  "thf.ownership.proof": "Receipts or valuations for the stolen items",
+  "srg.docs.technician": "Technician or electrician report — photo or PDF",
+  "pip.docs.plumber": "Plumber's invoice — photo or PDF",
 };
 
 export default async function UploadPage({ params }: { params: Promise<{ token: string }> }) {

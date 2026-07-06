@@ -62,7 +62,7 @@ export function ReportEditor(props: {
           <textarea
             defaultValue={initial[s.key] ?? ""}
             readOnly={readOnly}
-            rows={s.key === "findings" ? 10 : 3}
+            rows={s.key === "findings" || s.key === "copeFindings" || s.key === "recommendations" ? 10 : 3}
             onChange={(e) => { narrative.current[s.key] = e.target.value; }}
             onBlur={save}
             className={`w-full text-xs border rounded-lg px-2 py-1.5 leading-relaxed ${readOnly ? "bg-slate-50 text-slate-500 border-slate-100" : "border-slate-300"}`}

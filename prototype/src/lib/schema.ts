@@ -24,17 +24,20 @@ CREATE TABLE IF NOT EXISTS checklist_templates (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   claim_type TEXT NOT NULL,
+  job_type TEXT NOT NULL DEFAULT 'assessment' CHECK (job_type IN ('assessment','survey')),
   version TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
   is_reference_only INTEGER NOT NULL DEFAULT 0,
+  is_limited INTEGER NOT NULL DEFAULT 0,   -- bookable but limited/prototype depth
   structure TEXT NOT NULL -- JSON: sections[] -> items[]
 );
 
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY,
   job_number TEXT NOT NULL UNIQUE,
-  job_type TEXT NOT NULL DEFAULT 'assessment',
-  claim_type TEXT NOT NULL CHECK (claim_type IN ('geyser_water','accidental')),
+  job_type TEXT NOT NULL DEFAULT 'assessment' CHECK (job_type IN ('assessment','survey')),
+  claim_type TEXT NOT NULL CHECK (claim_type IN
+    ('geyser_water','accidental','storm','theft','fire','general','survey_residential','survey_commercial')),
   template_id TEXT NOT NULL REFERENCES checklist_templates(id),
   template_version TEXT NOT NULL,
   client_id TEXT NOT NULL REFERENCES clients(id),

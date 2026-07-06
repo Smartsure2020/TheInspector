@@ -1,7 +1,7 @@
 // S2 — Admin dashboard (DB-backed, Chunk 1B).
 import Link from "next/link";
 import { StaffShell, StatusChip } from "@/components/Chrome";
-import { listJobs } from "@/lib/data";
+import { jobTypeLabel, listJobs } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
   return (
     <StaffShell title="Admin dashboard">
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-xl font-semibold text-slate-800">Assessment pipeline</h1>
+        <h1 className="text-xl font-semibold text-slate-800">Assessment &amp; survey pipeline</h1>
         <Link href="/jobs/new" className="ml-auto bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium">
           + New job
         </Link>
@@ -67,7 +67,10 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
                   <div className="text-xs text-slate-400">{j.claim_number}</div>
                 </td>
                 <td className="px-3 py-2">{j.client_name}</td>
-                <td className="px-3 py-2 text-xs">{j.claim_type === "geyser_water" ? "Geyser / water" : "Accidental"}</td>
+                <td className="px-3 py-2 text-xs">
+                  {jobTypeLabel(j)}
+                  {j.job_type === "survey" && <span className="ml-1.5 text-[9px] font-semibold bg-teal-100 text-teal-800 rounded px-1 py-0.5 align-middle">SURVEY</span>}
+                </td>
                 <td className="px-3 py-2">{j.assessor_name ?? <span className="text-slate-400">—</span>}</td>
                 <td className="px-3 py-2"><StatusChip status={j.status} /></td>
                 <td className="px-3 py-2 text-xs text-slate-500">{j.scheduled_start ?? "—"}</td>

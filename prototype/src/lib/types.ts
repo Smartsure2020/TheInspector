@@ -1,8 +1,13 @@
 // Prototype types — Chunk 1A (mock data only; DB arrives in 1B per phase1/05).
 // Shapes intentionally mirror phase1/05-data-model-and-statuses.md so 1B is a
-// lift, not a rewrite.
+// lift, not a rewrite. Chunk 1F widens the platform: multiple claim types plus
+// survey job types — The Inspector is a template-driven assessment/survey
+// engine, not a geyser tool.
 
 export type Role = "admin" | "assessor" | "manager";
+
+// Assessments handle claims; surveys are risk surveys (COPE-style reports).
+export type JobType = "assessment" | "survey";
 
 export type JobStatus =
   | "New"
@@ -23,7 +28,9 @@ export type ClaimType =
   | "storm"
   | "theft"
   | "fire"
-  | "general";
+  | "general"
+  | "survey_residential"
+  | "survey_commercial";
 
 export type AnswerType =
   | "yes_no"
@@ -54,8 +61,10 @@ export interface ChecklistTemplate {
   id: string;
   name: string;
   claimType: ClaimType;
+  jobType: JobType;
   version: string;
-  referenceOnly: boolean;
+  referenceOnly: boolean; // not bookable (fire = physical-first triage reference)
+  limited?: boolean; // bookable but flagged as limited/prototype depth
   sections: TemplateSection[];
 }
 
@@ -99,7 +108,8 @@ export interface EvidenceItem {
 export interface Job {
   id: string;
   jobNumber: string;
-  claimType: Extract<ClaimType, "geyser_water" | "accidental">;
+  jobType?: JobType; // defaults to "assessment"
+  claimType: ClaimType;
   templateId: string;
   clientId: string;
   assessorId?: string;

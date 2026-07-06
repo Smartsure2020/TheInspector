@@ -21,8 +21,10 @@ export function RolePicker({ users }: { users: DemoUserLite[] }) {
           The Inspector <span className="text-slate-400 text-base font-normal">working codename — Acorn</span>
         </h1>
         <p className="text-slate-300 mt-2 text-sm">
-          Virtual assessment workflow prototype. Choose a role to enter — no login exists in Phase 1.
-          Clients never use this page; they enter via an assessment link only.
+          Virtual claims assessment &amp; risk survey platform prototype — storm, theft, accidental,
+          power surge, general non-motor and residential/commercial surveys, driven by checklist
+          templates. Choose a role to enter — no login exists in Phase 1. Clients never use this
+          page; they enter via an assessment link only.
         </p>
         <div className="grid md:grid-cols-3 gap-4 mt-8">
           {roleMeta.map((r) => (
@@ -44,8 +46,11 @@ export function RolePicker({ users }: { users: DemoUserLite[] }) {
           ))}
         </div>
         <p className="text-slate-500 text-xs mt-8">
-          Demo client links: <a className="underline" href="/c/demo-geyser">/c/demo-geyser</a> ·{" "}
+          Demo client links: <a className="underline" href="/c/demo-storm">/c/demo-storm</a> ·{" "}
           <a className="underline" href="/c/demo-acc">/c/demo-acc</a> ·{" "}
+          <a className="underline" href="/c/demo-theft">/c/demo-theft</a> ·{" "}
+          <a className="underline" href="/c/demo-survey">/c/demo-survey</a> (survey) ·{" "}
+          <a className="underline" href="/c/demo-upload">/c/demo-upload</a> (uploads) ·{" "}
           <a className="underline" href="/spike/device.html">device capability spike</a>
         </p>
       </div>

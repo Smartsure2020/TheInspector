@@ -6,7 +6,7 @@ import { StaffShell } from "@/components/Chrome";
 import { ReportEditor } from "@/components/ReportEditor";
 import { getJob, listReports } from "@/lib/data";
 import { Fragment } from "react";
-import { buildReportModel, initialNarrative, NARRATIVE_SECTIONS } from "@/lib/report";
+import { buildReportModel, initialNarrative } from "@/lib/report";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,7 @@ export default async function ReportBuilder({ params }: { params: Promise<{ id: 
 
           <ReportEditor
             jobId={id}
-            sections={NARRATIVE_SECTIONS.map((s) => ({ key: s.key, title: s.title }))}
+            sections={model.sections.map((s) => ({ key: s.key, title: s.title }))}
             initial={{ ...narrative }}
             canSubmit={canSubmit}
             submitLabel={job.status === "Returned for correction" ? "Resubmit for review" : "Submit for review"}
@@ -81,12 +81,12 @@ export default async function ReportBuilder({ params }: { params: Promise<{ id: 
         <div className="bg-white rounded-xl border border-slate-300 shadow-sm p-6 text-sm h-fit">
           <div className="text-center border-b border-slate-200 pb-4 mb-4">
             <div className="text-[10px] tracking-widest text-slate-400">ACORN — PLACEHOLDER BRANDING · PROTOTYPE OUTPUT ONLY</div>
-            <h2 className="text-lg font-bold text-slate-800 mt-1">Virtual Assessment Report</h2>
+            <h2 className="text-lg font-bold text-slate-800 mt-1">{model.docTitle}</h2>
             <p className="text-xs text-slate-500">{model.cover.claimNumber} · {model.cover.clientName} · {model.cover.dateOfLoss}</p>
             <p className="text-[10px] text-slate-400 mt-1">{model.cover.templateName} v{model.cover.templateVersion} · {model.cover.jobNumber}</p>
           </div>
 
-          <h3 className="font-semibold text-slate-700 text-xs uppercase">Claim particulars <span className="text-slate-400 font-normal normal-case">(auto)</span></h3>
+          <h3 className="font-semibold text-slate-700 text-xs uppercase">{model.jobType === "survey" ? "Survey particulars" : "Claim particulars"} <span className="text-slate-400 font-normal normal-case">(auto)</span></h3>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-slate-600 mt-1 mb-3">
             {model.particulars.map(([k, v]) => (<Fragment key={k}><dt className="text-slate-400">{k}</dt><dd>{v}</dd></Fragment>))}
           </dl>
@@ -109,7 +109,7 @@ export default async function ReportBuilder({ params }: { params: Promise<{ id: 
             )}
           </div>
 
-          <h3 className="font-semibold text-slate-700 text-xs uppercase">Limitations &amp; outstanding items <span className="bg-slate-800 text-white rounded px-1 normal-case font-normal">AUTO — non-removable</span></h3>
+          <h3 className="font-semibold text-slate-700 text-xs uppercase">{model.jobType === "survey" ? "Survey limitations" : "Limitations & outstanding items"} <span className="bg-slate-800 text-white rounded px-1 normal-case font-normal">AUTO — non-removable</span></h3>
           <ul className="text-[11px] text-slate-600 mt-1 mb-3 list-disc ml-4 space-y-0.5">
             {model.limitations.map((l, i) => <li key={i}>{l}</li>)}
           </ul>

@@ -41,10 +41,18 @@ export default async function ClientLanding({ params }: { params: Promise<{ toke
   const job = info.job!;
   const client = getClient(job.client_id);
   const claimRef = job.claim_number.length > 5 ? `…${job.claim_number.slice(-5)}` : job.claim_number;
-  const prep =
-    job.claim_type === "geyser_water"
-      ? ["Access to the geyser (cupboard or roof access point)", "Your plumber's invoice, if you have it", "The rooms with water damage"]
-      : ["The damaged item", "Its receipt or box, if you have it"];
+  // Per-type "please have ready" list. Safety rule: NEVER send a client onto
+  // a roof or ladder (phase0 T3) — storm wording says so explicitly.
+  const prepByType: Record<string, string[]> = {
+    geyser_water: ["Access to the geyser (cupboard or roof access point)", "Your plumber's invoice, if you have it", "The rooms with water damage"],
+    accidental: ["The damaged item", "Its receipt or box, if you have it"],
+    storm: ["A safe view of the damage — please do NOT climb on the roof or a ladder", "Access to the rooms where water came in", "Any photos you took at the time, and repair quotes if you have them"],
+    theft: ["Your SAPS case number, if you have it", "Access to where they got in", "Receipts or photos of the stolen items, if you have them"],
+    general: ["The damaged items or area", "Any electrician, plumber or technician report you have", "Receipts or quotes, if you have them"],
+    survey_residential: ["About an hour to walk around your property with your phone", "Access to the electrical board, geyser and alarm panel", "Your gate or street entrance for an outside view"],
+    survey_commercial: ["About an hour to walk through the premises with your phone", "Access to fire equipment, electrical boards and storage areas", "Someone who knows the building and its tenants"],
+  };
+  const prep = prepByType[job.claim_type] ?? prepByType.general;
 
   if (info.state === "too_early")
     return (
@@ -54,7 +62,7 @@ export default async function ClientLanding({ params }: { params: Promise<{ toke
           <div className="text-4xl mb-3">⏰</div>
           <h1 className="text-xl font-bold text-slate-800">You&apos;re a little early</h1>
           <p className="text-sm text-slate-600 mt-3">
-            Hello <b>{client?.full_name}</b> — your video assessment with {job.assessor_name ?? "your assessor"} starts in{" "}
+            Hello <b>{client?.full_name}</b> — your {job.job_type === "survey" ? "video risk survey" : "video assessment"} with {job.assessor_name ?? "your assessor"} starts in{" "}
             <Countdown target={info.scheduledStart!} />.
           </p>
           <p className="text-sm text-slate-500 mt-2">Come back to this same link at <b>{info.scheduledStart}</b>.</p>
@@ -73,7 +81,7 @@ export default async function ClientLanding({ params }: { params: Promise<{ toke
       <ClientPing token={token} kind="link_opened" />
       <div className="mt-6">
         <div className="text-xs tracking-widest text-slate-400 font-semibold">ACORN</div>
-        <h1 className="text-xl font-bold text-slate-800 mt-1">Your video assessment</h1>
+        <h1 className="text-xl font-bold text-slate-800 mt-1">{job.job_type === "survey" ? "Your video risk survey" : "Your video assessment"}</h1>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 mt-4 text-sm">
           <p className="text-slate-700">Hello <b>{client?.full_name}</b></p>
           <p className="text-slate-600 mt-2">

@@ -3,17 +3,18 @@
 // for event_log rows. Production audit hardening is Tier B, not here.
 import "server-only";
 import { db, nowIso, uuid } from "./db";
-import { JobStatus, TemplateSection } from "./types";
+import { ClaimType, JobStatus, JobType, TemplateSection } from "./types";
 
 // ---------- row shapes ----------
 export interface JobRow {
-  id: string; job_number: string; claim_type: "geyser_water" | "accidental";
+  id: string; job_number: string; job_type: JobType; claim_type: ClaimType;
   template_id: string; template_version: string; client_id: string;
   assessor_id: string | null; priority: string; claim_number: string;
   policy_number: string | null; date_of_loss: string | null; description: string | null;
   special_conditions: string | null; status: JobStatus; outcome: string | null;
   outcome_reason: string | null; attempt_count: number; created_at: string; updated_at: string;
-  client_name?: string; assessor_name?: string; scheduled_start?: string | null; link_token?: string | null;
+  client_name?: string; assessor_name?: string; template_name?: string;
+  scheduled_start?: string | null; link_token?: string | null;
 }
 export interface AppointmentRow {
   id: string; job_id: string; attempt_number: number; scheduled_start: string;
@@ -30,7 +31,34 @@ export interface ReportRow {
   id: string; job_id: string; version: number; status: string; content: string | null; submitted_at: string | null;
   submitted_by: string | null; reviewed_at: string | null; reviewed_by: string | null; review_comments: string | null;
 }
-export interface TemplateRow { id: string; name: string; claim_type: string; version: string; is_reference_only: number; structure: string }
+export interface TemplateRow {
+  id: string; name: string; claim_type: string; job_type: JobType; version: string;
+  is_reference_only: number; is_limited: number; structure: string;
+}
+
+// ---------- claim-type presentation + scheduling defaults (Chunk 1F) ----------
+export const CLAIM_TYPE_LABELS: Record<ClaimType, string> = {
+  geyser_water: "Geyser / water",
+  accidental: "Accidental",
+  storm: "Storm",
+  theft: "Theft / burglary",
+  fire: "Fire (triage)",
+  general: "General non-motor",
+  survey_residential: "Residential survey",
+  survey_commercial: "Commercial survey",
+};
+
+// Session length defaults per claim type (minutes) — prototype heuristics.
+const DURATIONS: Record<ClaimType, number> = {
+  geyser_water: 45, accidental: 20, storm: 60, theft: 60, fire: 30, general: 45,
+  survey_residential: 90, survey_commercial: 90,
+};
+export const durationForClaimType = (t: ClaimType) => DURATIONS[t] ?? 45;
+
+// Dashboards show the template name (e.g. "Power Surge") over the coarse
+// claim-type bucket where available.
+export const jobTypeLabel = (j: Pick<JobRow, "claim_type" | "template_name">) =>
+  j.template_name ?? CLAIM_TYPE_LABELS[j.claim_type] ?? j.claim_type;
 
 // ---------- status machine (phase1/05 §5.3 — exact edges) ----------
 export const EDGES: Record<JobStatus, JobStatus[]> = {
@@ -67,11 +95,12 @@ export function changeStatus(jobId: string, to: JobStatus, actor: Actor, eventTy
 
 // ---------- reads ----------
 const JOB_SELECT = `
-  SELECT j.*, c.full_name AS client_name, u.name AS assessor_name,
+  SELECT j.*, c.full_name AS client_name, u.name AS assessor_name, t.name AS template_name,
     (SELECT scheduled_start FROM appointments a WHERE a.job_id=j.id AND a.status IN ('scheduled') AND a.link_revoked_at IS NULL ORDER BY a.created_at DESC LIMIT 1) AS scheduled_start,
     (SELECT link_token FROM appointments a WHERE a.job_id=j.id AND a.link_revoked_at IS NULL ORDER BY a.created_at DESC LIMIT 1) AS link_token
   FROM jobs j
   JOIN clients c ON c.id = j.client_id
+  JOIN checklist_templates t ON t.id = j.template_id
   LEFT JOIN users u ON u.id = j.assessor_id`;
 
 export const listJobs = (status?: string) =>
@@ -106,7 +135,7 @@ export const getTemplate = (id: string) => {
 };
 
 export const listTemplates = () =>
-  (db().prepare("SELECT * FROM checklist_templates ORDER BY is_reference_only, name").all() as TemplateRow[])
+  (db().prepare("SELECT * FROM checklist_templates ORDER BY is_reference_only, job_type, name").all() as TemplateRow[])
     .map((t) => ({ ...t, sections: JSON.parse(t.structure) as TemplateSection[] }));
 
 export const listUsers = (role?: string) =>
@@ -213,7 +242,8 @@ export const evidenceCountByItem = (jobId: string) => {
   return Object.fromEntries(rows.map((r) => [r.item_key, r.n])) as Record<string, number>;
 };
 
-export const nextJobNumber = () => {
+// Shared counter, prefix by job type: INS- assessments, SRV- surveys.
+export const nextJobNumber = (jobType: JobType = "assessment") => {
   const n = (db().prepare("SELECT COUNT(*) AS n FROM jobs").get() as { n: number }).n + 1;
-  return `INS-2026-${String(n).padStart(4, "0")}`;
+  return `${jobType === "survey" ? "SRV" : "INS"}-2026-${String(n).padStart(4, "0")}`;
 };

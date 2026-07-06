@@ -52,9 +52,9 @@ export default async function JobDetail({ params, searchParams }: {
       {tab === "overview" && (
         <div className="grid md:grid-cols-2 gap-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4 text-sm">
-            <h2 className="font-medium text-slate-700 mb-2">Claim details</h2>
+            <h2 className="font-medium text-slate-700 mb-2">{job.job_type === "survey" ? "Survey details" : "Claim details"}</h2>
             <dl className="grid grid-cols-[130px_1fr] gap-y-1.5 text-slate-600">
-              <dt className="text-slate-400">Claim number</dt><dd>{job.claim_number}</dd>
+              <dt className="text-slate-400">{job.job_type === "survey" ? "Reference" : "Claim number"}</dt><dd>{job.claim_number}</dd>
               <dt className="text-slate-400">Policy</dt><dd>{job.policy_number}</dd>
               <dt className="text-slate-400">Type</dt><dd>{tpl.name} (v{job.template_version})</dd>
               <dt className="text-slate-400">Date of loss</dt><dd>{job.date_of_loss}</dd>

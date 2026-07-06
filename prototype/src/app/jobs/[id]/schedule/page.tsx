@@ -1,7 +1,7 @@
 // S7 — Scheduling (DB-backed, Chunk 1B). Generates a real appointment + link;
 // ?done=1 shows the active link + paste-ready message (manual send in Phase 1).
 import { StaffShell } from "@/components/Chrome";
-import { getJob, getClient, listAppointments } from "@/lib/data";
+import { durationForClaimType, getJob, getClient, jobTypeLabel, listAppointments } from "@/lib/data";
 import { scheduleAction } from "@/lib/actions";
 import { CopyButton } from "@/components/CopyButton";
 
@@ -20,7 +20,9 @@ export default async function Schedule({ params, searchParams }: {
 
   const link = active ? `http://localhost:3000/c/${active.link_token}` : null;
   const msg = active
-    ? `Hi ${client?.full_name}, your virtual assessment for claim ${job.claim_number} is booked for ${active.scheduled_start} with ${job.assessor_name ?? "your assessor"}. Please open this link on your phone at that time: ${link} — you'll need access to the affected area. No app needed.`
+    ? job.job_type === "survey"
+      ? `Hi ${client?.full_name}, your virtual risk survey (ref ${job.claim_number}) is booked for ${active.scheduled_start} with ${job.assessor_name ?? "your surveyor"}. Please open this link on your phone at that time: ${link} — we'll walk around the property together on video. No app needed.`
+      : `Hi ${client?.full_name}, your virtual assessment for claim ${job.claim_number} is booked for ${active.scheduled_start} with ${job.assessor_name ?? "your assessor"}. Please open this link on your phone at that time: ${link} — you'll need access to the affected area. No app needed.`
     : "";
 
   const scheduleWithId = scheduleAction.bind(null, id);
@@ -52,7 +54,7 @@ export default async function Schedule({ params, searchParams }: {
               </div>
             </div>
             <p className="text-xs text-slate-400 mt-2">
-              Duration: {job.claim_type === "geyser_water" ? "45 min (geyser)" : "20 min (accidental)"}.
+              Duration: {durationForClaimType(job.claim_type)} min ({jobTypeLabel(job)}).
               {job.status !== "Assigned" && " Rescheduling revokes the previous link and issues a new one."}
             </p>
             <button type="submit" className="mt-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-semibold">

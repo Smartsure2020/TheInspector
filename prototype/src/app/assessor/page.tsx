@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { StaffShell, StatusChip } from "@/components/Chrome";
-import { listJobs, getUser, clientReadiness } from "@/lib/data";
+import { listJobs, getUser, clientReadiness, jobTypeLabel } from "@/lib/data";
 
 function ReadyDots({ jobId }: { jobId: string }) {
   const r = clientReadiness(jobId);
@@ -48,7 +48,7 @@ export default async function AssessorDashboard() {
           <div key={j.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
             <div className="flex-1">
               <div className="font-medium text-slate-800">{j.scheduled_start ?? "now"} — {j.client_name}</div>
-              <div className="text-xs text-slate-500">{j.job_number} · {j.claim_type === "geyser_water" ? "Geyser / water" : "Accidental"} · attempt {j.attempt_count}</div>
+              <div className="text-xs text-slate-500">{j.job_number} · {jobTypeLabel(j)} · attempt {j.attempt_count}</div>
               {j.status === "In progress" ? (
                 <div className="text-xs mt-1">
                   <span className="inline-block w-2 h-2 rounded-full mr-1 bg-emerald-500" />

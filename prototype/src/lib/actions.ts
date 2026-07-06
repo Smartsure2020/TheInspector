@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { db, nowIso, uuid } from "./db";
-import { Actor, changeStatus, getJob, getUser, logEvent, nextJobNumber, SYSTEM_ACTOR } from "./data";
-import { JobStatus } from "./types";
+import { Actor, changeStatus, durationForClaimType, getJob, getUser, logEvent, nextJobNumber, SYSTEM_ACTOR } from "./data";
+import { JobStatus, JobType } from "./types";
 
 async function actor(): Promise<Actor> {
   const id = (await cookies()).get("inspector.demoUser")?.value;
@@ -20,19 +20,20 @@ export async function createJobAction(formData: FormData) {
   const clientId = uuid();
   const jobId = uuid();
   const templateId = String(formData.get("template_id"));
-  const tpl = db().prepare("SELECT claim_type, version, is_reference_only FROM checklist_templates WHERE id=?").get(templateId) as
-    { claim_type: string; version: string; is_reference_only: number } | undefined;
-  if (!tpl || tpl.is_reference_only) throw new Error("Only geyser/water and accidental damage templates are active in Phase 1.");
+  const tpl = db().prepare("SELECT claim_type, job_type, version, is_reference_only FROM checklist_templates WHERE id=?").get(templateId) as
+    { claim_type: string; job_type: JobType; version: string; is_reference_only: number } | undefined;
+  if (!tpl || tpl.is_reference_only)
+    throw new Error("This template is reference-only / physical-first — it cannot be booked as a virtual job in the prototype.");
   const assessorId = String(formData.get("assessor_id") || "");
   const now = nowIso();
 
   db().prepare("INSERT INTO clients (id,full_name,phone,email,language,created_at) VALUES (?,?,?,?,?,?)")
     .run(clientId, String(formData.get("client_name") || "Unnamed Test Insured"), String(formData.get("client_phone") || ""), String(formData.get("client_email") || ""), "English", now);
 
-  db().prepare(`INSERT INTO jobs (id,job_number,claim_type,template_id,template_version,client_id,assessor_id,priority,
+  db().prepare(`INSERT INTO jobs (id,job_number,job_type,claim_type,template_id,template_version,client_id,assessor_id,priority,
       claim_number,policy_number,date_of_loss,description,special_conditions,status,attempt_count,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`)
-    .run(jobId, nextJobNumber(), tpl.claim_type, templateId, tpl.version, clientId,
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`)
+    .run(jobId, nextJobNumber(tpl.job_type), tpl.job_type, tpl.claim_type, templateId, tpl.version, clientId,
       assessorId || null, String(formData.get("priority") || "Normal"),
       String(formData.get("claim_number") || ""), String(formData.get("policy_number") || ""),
       String(formData.get("date_of_loss") || ""), String(formData.get("description") || ""),
@@ -57,7 +58,7 @@ export async function scheduleAction(jobId: string, formData: FormData) {
   const job = getJob(jobId);
   if (!job) throw new Error("Unknown job");
   const when = `${formData.get("date")} ${formData.get("time")}`;
-  const duration = job.claim_type === "geyser_water" ? 45 : 20;
+  const duration = durationForClaimType(job.claim_type);
   const token = job.id.startsWith("j") && !job.link_token ? `tok-${uuid().slice(0, 12)}` : `tok-${uuid().slice(0, 12)}`;
   const now = nowIso();
 

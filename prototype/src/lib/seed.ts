@@ -1,7 +1,8 @@
-// Seeds the prototype DB from the 1A fixture data (Chunk 1B).
+// Seeds the prototype DB from the 1A fixture data (Chunk 1B; widened in 1F to
+// the multi-assessment + survey book of demo jobs).
 // ALL DATA IS FAKE / ROLE-PLAY — no real client data permitted (phase0 D-09).
 import type { Database } from "better-sqlite3";
-import { users, clients, templates, jobs, evidence } from "./fixtures";
+import { users, clients, templates, jobs, evidence, seedResponses, templateById } from "./fixtures";
 
 const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
@@ -16,14 +17,14 @@ export function runSeed(db: Database) {
 
     for (const t of templates)
       db.prepare(
-        "INSERT INTO checklist_templates (id,name,claim_type,version,is_active,is_reference_only,structure) VALUES (?,?,?,?,?,?,?)"
-      ).run(t.id, t.name, t.claimType, t.version, t.referenceOnly ? 0 : 1, t.referenceOnly ? 1 : 0, JSON.stringify(t.sections));
+        "INSERT INTO checklist_templates (id,name,claim_type,job_type,version,is_active,is_reference_only,is_limited,structure) VALUES (?,?,?,?,?,?,?,?,?)"
+      ).run(t.id, t.name, t.claimType, t.jobType, t.version, t.referenceOnly ? 0 : 1, t.referenceOnly ? 1 : 0, t.limited ? 1 : 0, JSON.stringify(t.sections));
 
     const insJob = db.prepare(`INSERT INTO jobs
-      (id,job_number,claim_type,template_id,template_version,client_id,assessor_id,priority,
+      (id,job_number,job_type,claim_type,template_id,template_version,client_id,assessor_id,priority,
        claim_number,policy_number,date_of_loss,description,special_conditions,status,outcome,
        attempt_count,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     const insEvent = db.prepare(
       "INSERT INTO event_log (id,job_id,actor,actor_role,event_type,data,occurred_at) VALUES (?,?,?,?,?,?,?)"
     );
@@ -33,7 +34,8 @@ export function runSeed(db: Database) {
 
     for (const j of jobs) {
       insJob.run(
-        j.id, j.jobNumber, j.claimType, j.templateId, "0.2", j.clientId, j.assessorId ?? null,
+        j.id, j.jobNumber, j.jobType ?? "assessment", j.claimType, j.templateId,
+        templateById(j.templateId)?.version ?? "0.2", j.clientId, j.assessorId ?? null,
         j.priority, j.claimNumber, j.policyNumber, j.dateOfLoss, j.description,
         j.specialConditions ?? null, j.status, j.outcome ?? null, j.attempt,
         now(), now()
@@ -67,11 +69,19 @@ export function runSeed(db: Database) {
         VALUES (?,?,?,?,?,?,?,?,?)`)
         .run(e.id, e.jobId, e.itemKey ?? null, e.kind, e.label, e.capturedAt, e.featured ? 1 : 0, 0, e.hue);
 
-    // Missing-evidence state for j6 (drives Awaiting evidence + upload page).
-    for (const k of ["gey.docs.plumber", "gey.unit.plate"])
-      db.prepare(`INSERT INTO checklist_responses (id,job_id,item_key,state,missing_reason,updated_at)
-        VALUES (?,?,?,?,?,?)`)
-        .run(crypto.randomUUID(), "j6", k, "missing", "will upload later", now());
+    // Checklist responses: answers/notes/concerns feed the report prefills;
+    // 'missing' rows drive Awaiting evidence + the upload page.
+    for (const r of seedResponses)
+      db.prepare(`INSERT INTO checklist_responses
+        (id,job_id,item_key,answer,note,concern_flag,concern_note,state,missing_reason,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .run(
+          crypto.randomUUID(), r.jobId, r.itemKey,
+          r.answer !== undefined ? JSON.stringify(r.answer) : null,
+          r.note ?? null, r.concernFlag ? 1 : 0, r.concernNote ?? null,
+          r.state ?? (r.answer !== undefined ? "answered" : "pending"),
+          r.missingReason ?? null, now()
+        );
 
     // Report rows for jobs in report states.
     const insReport = db.prepare(`INSERT INTO reports
@@ -83,6 +93,8 @@ export function runSeed(db: Database) {
     insReport.run(crypto.randomUUID(), "j10", 1, "returned", "2026-07-02 09:00", "Sipho Demo", "2026-07-02 11:00", "Craig Demo",
       JSON.stringify({ summary: "Tighten the summary." }));
     insReport.run(crypto.randomUUID(), "j10", 2, "approved", "2026-07-02 14:00", "Sipho Demo", "2026-07-02 15:30", "Craig Demo", null);
+    // Survey report in the manager queue (report variant demo).
+    insReport.run(crypto.randomUUID(), "j16", 1, "submitted", "2026-07-04 10:15", "Sipho Demo", null, null, null);
 
     // Live session row for j5 (In progress) — sessions table exercised for 1D/1E.
     db.prepare(`INSERT INTO sessions (id,job_id,assessor_id,started_at,client_joined_at,consent_name,consent_accepted_at,consent_text_version)
