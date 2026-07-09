@@ -4,8 +4,8 @@
 // thumbnail, instruction banner, simple controls, that's all.
 import { useEffect, useRef, useState } from "react";
 import { PrototypeBanner } from "@/components/Chrome";
-import { ConnectionState, RoomMessage } from "@/lib/video/adapter";
-import { P2PAdapter } from "@/lib/video/p2p-adapter";
+import { ConnectionState, RoomMessage, SessionAdapter } from "@/lib/video/adapter";
+import { createAdapter } from "@/lib/video/create-adapter";
 import { captureHighResPhoto, tryTorch } from "@/lib/video/media";
 import { uploadEvidenceAction } from "@/lib/actions";
 
@@ -20,7 +20,7 @@ const PROMPT_TEXT: Record<string, string> = {
 };
 
 export function ClientRoom({ token, jobId, assessorName }: { token: string; jobId: string; assessorName: string }) {
-  const adapterRef = useRef<P2PAdapter | null>(null);
+  const adapterRef = useRef<SessionAdapter | null>(null);
   const localRef = useRef<HTMLVideoElement>(null);
   const remoteRef = useRef<HTMLVideoElement>(null);
   const [conn, setConn] = useState<ConnectionState>("idle");
@@ -35,9 +35,11 @@ export function ClientRoom({ token, jobId, assessorName }: { token: string; jobI
   const [hasRemote, setHasRemote] = useState(false);
 
   useEffect(() => {
-    const adapter = new P2PAdapter();
-    adapterRef.current = adapter;
+    let cancelled = false;
     (async () => {
+      const adapter = await createAdapter();
+      if (cancelled) { void adapter.leaveRoom(); return; }
+      adapterRef.current = adapter;
       await adapter.resolveRoom(`job-${jobId}`);
       await adapter.joinRoom("client", {
         onLocalStream: (s) => { if (localRef.current) localRef.current.srcObject = s; },
@@ -53,7 +55,7 @@ export function ClientRoom({ token, jobId, assessorName }: { token: string; jobI
         },
       });
     })();
-    return () => { void adapter.leaveRoom(); };
+    return () => { cancelled = true; void adapterRef.current?.leaveRoom(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 

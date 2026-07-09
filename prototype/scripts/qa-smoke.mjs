@@ -22,7 +22,7 @@ const CHECKS = [
   ["/jobs/new", ["not bookable", "is_limited", "Storm Damage", "Residential Risk Survey"], "template picker: fire disabled server-side, limited flag delivered"],
   ["/jobs/j3", ["INS-2026-0003", "Storm Damage", "0.1-1F"], "primary storm demo job"],
   ["/jobs/j3/schedule", ["Reschedule"], "schedule page"],
-  ["/jobs/j5/room", ["Power Surge", "P2P (provider-agnostic"], "live room + provider-agnostic adapter"],
+  ["/jobs/j5/room", ["Power Surge"], "live room renders"],
   ["/jobs/j6/evidence", ["Evidence gallery"], "evidence gallery"],
   ["/jobs/j7/report", ["Report builder", "LIMITATIONS", "maintenance"], "storm report builder + limitations"],
   ["/jobs/j8/report/final", ["Virtual Assessment Report", "Power Surge"], "submitted surge report"],

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PrototypeBanner } from "@/components/Chrome";
 import { TemplateSection } from "@/lib/types";
 import { Presence, RoomMessage, SessionAdapter, ConnectionState } from "@/lib/video/adapter";
-import { P2PAdapter } from "@/lib/video/p2p-adapter";
+import { createAdapter, getAdapterType } from "@/lib/video/create-adapter";
 import {
   admitClientAction, endSessionAction, saveCaptureAction, saveResponseAction, sessionNetworkEventAction,
 } from "@/lib/actions";
@@ -76,10 +76,12 @@ export function AssessorRoom(props: {
 
   // ---- adapter lifecycle ----
   useEffect(() => {
-    const adapter = new P2PAdapter();
-    adapterRef.current = adapter;
+    let cancelled = false;
     let prevConn: ConnectionState = "idle";
     (async () => {
+      const adapter = await createAdapter();
+      if (cancelled) { void adapter.leaveRoom(); return; }
+      adapterRef.current = adapter;
       await adapter.resolveRoom(`job-${jobId}`);
       await adapter.joinRoom("assessor", {
         onLocalStream: (s) => { if (localVideoRef.current) localVideoRef.current.srcObject = s; },
@@ -103,7 +105,7 @@ export function AssessorRoom(props: {
         onError: (e) => say(e),
       });
     })();
-    return () => { void adapter.leaveRoom(); };
+    return () => { cancelled = true; void adapterRef.current?.leaveRoom(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
@@ -248,7 +250,7 @@ export function AssessorRoom(props: {
         <span className="text-xs bg-slate-700 rounded px-2 py-0.5">Session {clock}</span>
         <span className={`text-xs rounded px-2 py-0.5 ${conn === "connected" ? "bg-emerald-800 text-emerald-200" : "bg-slate-700"}`}>{connBadge}</span>
         {lastCaptureMs !== null && <span className="text-xs text-slate-500">last capture {lastCaptureMs} ms</span>}
-        <span className="ml-auto text-xs text-slate-500">Adapter: P2P (provider-agnostic — no video provider selected)</span>
+        <span className="ml-auto text-xs text-slate-500">Adapter: {getAdapterType().toUpperCase()}</span>
       </header>
 
       <div className="flex-1 grid grid-cols-[3fr_2fr] gap-2 px-2 pb-2 min-h-0">

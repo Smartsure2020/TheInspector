@@ -10,7 +10,10 @@
     "qa:smoke": "node scripts/qa-smoke.mjs"
   },
   "dependencies": {
+    "@daily-co/daily-js": "^0.91.0",
     "better-sqlite3": "^12.11.1",
+    "livekit-client": "^2.20.1",
+    "livekit-server-sdk": "^2.17.0",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4",
