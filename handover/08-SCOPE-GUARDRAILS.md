@@ -31,10 +31,12 @@ until someone with authority says otherwise, and record that answer.**
 - Video/audio recording of sessions (excluded by D-04).
 - WhatsApp or any automated message-sending channel (link sending stays
   manual paste).
-- **Daily.co anything** (excluded — paid) and **LiveKit implementation**
-  (stub stays a stub until the provider decision, gate G2).
+- **LiveKit and Daily.co evaluation adapters** are now approved (D-11,
+  2026-07-07) but must each live in ONE adapter file behind `SessionAdapter`.
+  Provider-specific code anywhere outside a single adapter file remains
+  forbidden. Provider secrets go in `.env.local` only, never the repo.
 - Provider-specific video code anywhere outside a single `SessionAdapter`
-  implementation file.
+  implementation file (per adapter).
 - Real client data in any form, any environment ("just one test record"
   included) — phase0 D-09 hard gate.
 - A template builder UI (templates are code, by decision).

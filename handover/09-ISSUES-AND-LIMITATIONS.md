@@ -25,10 +25,11 @@ caveats for handover. Update BOTH when behaviour changes. Gate references
    polling; no durability. Replaced at provider selection; the
    `SessionAdapter` interface hides it from room components.
 
-4. **No final video provider selected (L3, gate G2).** Daily.co excluded
-   (paid); LiveKit is a documentation stub only (`livekit-adapter.stub.ts` —
-   not implemented, not imported). Deliberate: rooms stay provider-agnostic
-   until the decision.
+4. **No final video provider selected (L3, gate G2).** Management approved
+   evaluation of both LiveKit and Daily.co (D-11, 2026-07-07; previous
+   Daily.co exclusion overridden). Evaluation adapters to be built behind
+   `SessionAdapter`; P2P remains default until testing completes and a
+   winner is picked.
 
 5. **SQLite + local file storage, prototype only (L4, gate G5).**
    Single-writer, no backups, uploads on local disk (`prototype/db/uploads/`),

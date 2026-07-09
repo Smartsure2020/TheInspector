@@ -25,14 +25,18 @@ build it, do not partially build it, do not "prepare it in code".
 ## G2 — Final video provider / TURN decision
 
 - **Why it matters:** P2P with no TURN fails on strict corporate NAT/CGNAT
-  (L2); no provider is selected (L3); Daily.co is excluded (paid).
+  (L2); no provider is selected (L3).
 - **Trigger:** mobile verification results; management direction from the
   demo; any pilot planning.
+- **Update (D-11, 2026-07-07):** Management approved evaluation of BOTH
+  LiveKit and Daily.co (previous Daily.co exclusion overridden). Both
+  adapters to be built behind `SessionAdapter`, tested side by side,
+  one winner picked.
 - **Must be true to pass:** comparison done (cost, POPIA/data residency,
   testability); chosen option implemented **behind `SessionAdapter` only**;
   verified on the device matrix; decision recorded.
-- **Blocked until then:** provider-specific code anywhere outside one adapter
-  file; recording; any paid provider account.
+- **Blocked until then:** making either provider the default; recording;
+  provider-specific code outside the adapter files.
 
 ## G3 — Assessor template sign-off
 

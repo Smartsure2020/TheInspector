@@ -137,7 +137,7 @@ sign-off**. Geyser and accidental carry Phase 0 v0.2 review-sheet content
 
 1. Assessor template sign-off (workshop)
 2. Mobile live-room verification (device spike SP1–SP10 on phones)
-3. Final video provider / TURN decision
+3. Video provider evaluation — LiveKit + Daily.co (D-11, approved 2026-07-07)
 4. Minimum live-data safeguards before ANY real-client use (phase0 D-09)
 5. Postgres + object-storage migration before shadow mode
 6. Production hardening (auth/MFA/permissions, POPIA, storage, audit,

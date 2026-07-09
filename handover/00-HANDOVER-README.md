@@ -98,9 +98,9 @@ Do not build any of the following without an explicit, recorded approval
 - POPIA / secure-storage / audit / retention hardening, signed URLs
 - Any AI features, any integrations with other Acorn systems, WhatsApp
 - Video recording of sessions
-- A specific video provider (Daily.co is **excluded** — paid; LiveKit is a
-  stub only) or any provider-specific code outside the `SessionAdapter`
-  interface
+- Provider-specific code outside the `SessionAdapter` interface (LiveKit and
+  Daily.co evaluation adapters are approved per D-11, 2026-07-07, but must
+  each stay in one adapter file; P2P remains default until testing completes)
 - Real client data of any kind (phase0 gate D-09 — hard block)
 - A template builder UI
 - Making fire bookable as a virtual assessment
