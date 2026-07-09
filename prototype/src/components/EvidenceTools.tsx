@@ -90,7 +90,7 @@ export function EvidenceCard(props: {
           value={e.item_key ?? ""}
           onChange={(x) => run({ itemKey: x.target.value || null })}
           title="Refile to a checklist item"
-          className="flex-1 min-w-0 text-[10px] border border-slate-200 rounded px-1 py-0.5 text-slate-500 bg-white disabled:opacity-50"
+          className="flex-1 min-w-0 text-[10px] border border-slate-200 rounded px-1 py-0.5 text-slate-700 bg-white disabled:opacity-50"
         >
           <option value="">UNFILED</option>
           {itemOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}

@@ -46,11 +46,11 @@ export default async function Schedule({ params, searchParams }: {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
-                <input name="date" type="date" required defaultValue={defDate} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                <input name="date" type="date" required defaultValue={defDate} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Time (SAST)</label>
-                <input name="time" type="time" required defaultValue={defTime} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                <input name="time" type="time" required defaultValue={defTime} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900" />
               </div>
             </div>
             <p className="text-xs text-slate-400 mt-2">

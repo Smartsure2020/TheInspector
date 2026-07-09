@@ -17,7 +17,7 @@ export function CreateJobForm({ templates, assessors }: { templates: Tpl[]; asse
   const claims = templates.filter((t) => t.job_type === "assessment");
   const surveys = templates.filter((t) => t.job_type === "survey");
 
-  const field = "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white";
+  const field = "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 placeholder:text-slate-400";
   const label = "block text-xs font-medium text-slate-500 mt-3 mb-1";
 
   const opt = (t: Tpl) => (

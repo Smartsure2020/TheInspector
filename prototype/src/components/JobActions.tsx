@@ -30,7 +30,7 @@ export function JobActions({ jobId, status, assessors, hasAssessor }: {
       <div className="flex flex-wrap items-center gap-2">
         {status === "New" && (
           <>
-            <select className="text-xs border border-slate-300 rounded-lg px-2 py-1.5" value={assessorId} onChange={(e) => setAssessorId(e.target.value)}>
+            <select className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-900" value={assessorId} onChange={(e) => setAssessorId(e.target.value)}>
               {assessors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             <button disabled={pending} className={`${btn} bg-blue-600 text-white`} onClick={() => run(() => assignAction(jobId, assessorId))}>
@@ -108,7 +108,7 @@ function NoShow({ jobId, pending, run, btn }: { jobId: string; pending: boolean;
     return <button disabled={pending} className={`${btn} bg-red-600 text-white`} onClick={() => setOpen(true)}>Mark no-show…</button>;
   return (
     <span className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2 py-1">
-      <select className="text-xs border border-slate-300 rounded px-1 py-1" value={reason} onChange={(e) => setReason(e.target.value)}>
+      <select className="text-xs border border-slate-300 rounded px-1 py-1 bg-white text-slate-900" value={reason} onChange={(e) => setReason(e.target.value)}>
         {NO_SHOW_REASONS.map((r) => <option key={r}>{r}</option>)}
       </select>
       <button disabled={pending} className={`${btn} bg-red-600 text-white`} onClick={() => run(() => noShowAction(jobId, reason))}>Confirm</button>
@@ -124,7 +124,7 @@ function Cancel({ jobId, pending, run, btn }: { jobId: string; pending: boolean;
     return <button disabled={pending} className={`${btn} ml-auto text-rose-700 border border-rose-200 bg-white`} onClick={() => setOpen(true)}>Cancel job…</button>;
   return (
     <span className="ml-auto flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1">
-      <select className="text-xs border border-slate-300 rounded px-1 py-1" value={reason} onChange={(e) => setReason(e.target.value)}>
+      <select className="text-xs border border-slate-300 rounded px-1 py-1 bg-white text-slate-900" value={reason} onChange={(e) => setReason(e.target.value)}>
         {CANCEL_REASONS.map((r) => <option key={r}>{r}</option>)}
       </select>
       <button disabled={pending} className={`${btn} bg-rose-700 text-white`} onClick={() => run(() => cancelAction(jobId, reason))}>Confirm cancel</button>
