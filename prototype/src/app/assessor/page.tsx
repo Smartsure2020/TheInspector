@@ -4,8 +4,8 @@ import { cookies } from "next/headers";
 import { StaffShell, StatusChip } from "@/components/Chrome";
 import { listJobs, getUser, clientReadiness, jobTypeLabel } from "@/lib/data";
 
-function ReadyDots({ jobId }: { jobId: string }) {
-  const r = clientReadiness(jobId);
+async function ReadyDots({ jobId }: { jobId: string }) {
+  const r = await clientReadiness(jobId);
   const dots: [string, boolean][] = [
     ["link opened", r.linkOpened],
     ["consent accepted", r.consent],
@@ -28,8 +28,8 @@ export const dynamic = "force-dynamic";
 
 export default async function AssessorDashboard() {
   const id = (await cookies()).get("inspector.demoUser")?.value;
-  const me = id ? getUser(id) : undefined;
-  const all = listJobs();
+  const me = id ? await getUser(id) : undefined;
+  const all = await listJobs();
   const mine = me ? all.filter((j) => j.assessor_id === me.id || !j.assessor_id) : all;
   const today = mine.filter((j) => j.status === "Scheduled" || j.status === "In progress");
 

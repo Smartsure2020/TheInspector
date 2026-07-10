@@ -12,10 +12,10 @@ export default async function Schedule({ params, searchParams }: {
 }) {
   const { id } = await params;
   const { done } = await searchParams;
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job) return <StaffShell title="Schedule"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
-  const client = getClient(job.client_id);
-  const active = listAppointments(id).filter((a) => a.status === "scheduled" && !a.link_revoked_at).at(-1);
+  const client = await getClient(job.client_id);
+  const active = (await listAppointments(id)).filter((a) => a.status === "scheduled" && !a.link_revoked_at).at(-1);
   const canSchedule = ["Assigned", "Scheduled", "No-show"].includes(job.status);
 
   const link = active ? `http://localhost:3000/c/${active.link_token}` : null;

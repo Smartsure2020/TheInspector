@@ -6,13 +6,13 @@ export const dynamic = "force-dynamic";
 
 export default async function LiveRoom({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job) return <div className="p-8 text-slate-500">Unknown job.</div>;
-  const tpl = getTemplate(job.template_id)!;
-  const client = getClient(job.client_id);
+  const tpl = (await getTemplate(job.template_id))!;
+  const client = await getClient(job.client_id);
 
   const initialResponses = Object.fromEntries(
-    listResponses(id).map((r) => [
+    (await listResponses(id)).map((r) => [
       r.item_key,
       {
         answer: r.answer ? JSON.parse(r.answer) : undefined,
@@ -34,8 +34,8 @@ export default async function LiveRoom({ params }: { params: Promise<{ id: strin
       templateVersion={job.template_version}
       sections={tpl.sections}
       initialResponses={initialResponses}
-      initialCounts={evidenceCountByItem(id)}
-      hasActiveSession={!!getActiveSession(id)}
+      initialCounts={await evidenceCountByItem(id)}
+      hasActiveSession={!!(await getActiveSession(id))}
       jobStatus={job.status}
     />
   );

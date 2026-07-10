@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
 
 export default async function WaitingRoom({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const info = resolveToken(token);
+  const info = await resolveToken(token);
   if (info.state === "invalid" || info.state === "revoked" || info.state === "expired") redirect(`/c/${token}`);
-  const first = info.job ? getClient(info.job.client_id)?.full_name.split(" ")[0] : "there";
+  const first = info.job ? (await getClient(info.job.client_id))?.full_name.split(" ")[0] : "there";
   const assessor = info.job?.assessor_name ?? "your assessor";
 
   return (

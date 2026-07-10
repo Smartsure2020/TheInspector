@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Consent({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const info = resolveToken(token);
+  const info = await resolveToken(token);
   // Problem states get the friendly explanation on the landing page.
   if (info.state === "invalid" || info.state === "revoked" || info.state === "expired") redirect(`/c/${token}`);
   return (

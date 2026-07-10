@@ -20,7 +20,7 @@ const plainNames: Record<string, string> = {
 
 export default async function UploadPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const info = resolveToken(token);
+  const info = await resolveToken(token);
 
   if (info.state === "invalid" || !info.job)
     return (
@@ -47,9 +47,10 @@ export default async function UploadPage({ params }: { params: Promise<{ token: 
       </ClientShell>
     );
 
-  const tpl = getTemplate(info.job.template_id)!;
-  const uploads = uploadsByItem(info.job.id);
-  const items = missingItems(info.job.id).map((m) => ({
+  const tpl = (await getTemplate(info.job.template_id))!;
+  const uploads = await uploadsByItem(info.job.id);
+  const missing = await missingItems(info.job.id);
+  const items = missing.map((m) => ({
     key: m.item_key,
     label: plainNames[m.item_key] ?? templateItemByKey(tpl.sections, m.item_key)?.item.prompt ?? m.item_key,
     done: (uploads.get(m.item_key) ?? 0) > 0,

@@ -15,10 +15,9 @@ import {
   getClient, getJob, getTemplate, listEvidence, listResponses, missingItems,
   templateItemByKey, JobRow,
 } from "./data";
-import { db } from "./db";
+import { query } from "./db";
 import { ClaimType, JobType, TemplateSection } from "./types";
 
-// Narrative is keyed by section — claims and surveys use different keys.
 export type Narrative = Record<string, string>;
 export interface NarrativeSectionDef { key: string; title: string }
 
@@ -40,10 +39,8 @@ export const SURVEY_NARRATIVE_SECTIONS: NarrativeSectionDef[] = [
 export const narrativeSectionsFor = (jobType: JobType) =>
   jobType === "survey" ? SURVEY_NARRATIVE_SECTIONS : CLAIM_NARRATIVE_SECTIONS;
 
-// Kept as the default export name used by older pages (claims layout).
 export const NARRATIVE_SECTIONS = CLAIM_NARRATIVE_SECTIONS;
 
-// Per-claim-type report wording (loss label + cause-of-loss prefill).
 const CLAIM_WORDING: Partial<Record<ClaimType, { label: string; cause: string }>> = {
   geyser_water: {
     label: "geyser failure and resultant water damage",
@@ -74,7 +71,6 @@ const CLAIM_WORDING: Partial<Record<ClaimType, { label: string; cause: string }>
   },
 };
 
-// Dedicated general-bucket templates carry their own wording.
 const TEMPLATE_WORDING: Record<string, { label: string; cause: string }> = {
   "tpl-surge": {
     label: "power surge damage",
@@ -97,16 +93,16 @@ export interface EvidenceIndexRow {
 
 export interface ReportModel {
   jobType: JobType;
-  docTitle: string;                 // "Virtual Assessment Report" | "Virtual Risk Survey Report"
-  sections: NarrativeSectionDef[];  // narrative sections for this variant
+  docTitle: string;
+  sections: NarrativeSectionDef[];
   cover: {
     jobNumber: string; claimNumber: string; policyNumber: string;
     clientName: string; templateName: string; templateVersion: string;
     dateOfLoss: string; assessorName: string;
   };
   particulars: [string, string][];
-  prefill: Narrative;               // suggested text from checklist data
-  limitations: string[];            // AUTO — non-removable
+  prefill: Narrative;
+  limitations: string[];
   evidenceIndex: EvidenceIndexRow[];
   featured: { id: string; label: string; hasFile: boolean; hue: number | null }[];
   stats: { answered: number; total: number; concerns: number; missing: number; evidence: number };
@@ -122,19 +118,18 @@ const answerText = (raw: string | null): string => {
   }
 };
 
-export function buildReportModel(jobId: string): ReportModel | undefined {
-  const job = getJob(jobId);
+export async function buildReportModel(jobId: string): Promise<ReportModel | undefined> {
+  const job = await getJob(jobId);
   if (!job) return undefined;
-  const client = getClient(job.client_id);
-  const tpl = getTemplate(job.template_id)!;
+  const client = await getClient(job.client_id);
+  const tpl = (await getTemplate(job.template_id))!;
   const sections = tpl.sections;
-  const responses = listResponses(jobId);
+  const responses = await listResponses(jobId);
   const byKey = new Map(responses.map((r) => [r.item_key, r]));
-  const evidence = listEvidence(jobId);
-  const missing = missingItems(jobId);
+  const evidence = await listEvidence(jobId);
+  const missing = await missingItems(jobId);
   const isSurvey = job.job_type === "survey";
 
-  // ---- stats ----
   let total = 0, answered = 0, concerns = 0;
   for (const s of sections) for (const i of s.items) {
     total++;
@@ -143,7 +138,6 @@ export function buildReportModel(jobId: string): ReportModel | undefined {
     if (r?.concern_flag) concerns++;
   }
 
-  // ---- per-section digest of answers/notes/concerns (findings / COPE) ----
   const findingsParts: string[] = [];
   for (const s of sections) {
     const lines: string[] = [];
@@ -159,13 +153,11 @@ export function buildReportModel(jobId: string): ReportModel | undefined {
     if (lines.length) findingsParts.push(`${s.title}:\n${lines.join("\n")}`);
   }
 
-  // ---- limitations: AUTO, non-removable ----
   const limitations: string[] = [
     isSurvey
       ? "This was a virtual (video) risk survey; observations are limited to what could be shown on camera and to information supplied by the client. It is not a physical inspection and does not certify statutory compliance."
       : "This was a virtual (video) assessment; findings are based on what the client could show on camera and on evidence supplied by the client.",
   ];
-  // Survey: the surveyability item drives the physical-survey recommendation.
   if (isSurvey) {
     const surveyable = answerText(
       [...byKey.entries()].find(([k]) => k.endsWith(".grading.surveyable"))?.[1]?.answer ?? null
@@ -186,7 +178,6 @@ export function buildReportModel(jobId: string): ReportModel | undefined {
   if (unanswered.length)
     limitations.push(`Not covered during the session (${unanswered.length} item${unanswered.length > 1 ? "s" : ""}): ${unanswered.slice(0, 6).map((i) => i.prompt).join("; ")}${unanswered.length > 6 ? "; …" : ""}.`);
 
-  // ---- evidence index ----
   const evidenceIndex: EvidenceIndexRow[] = evidence.map((e, idx) => {
     const info = e.item_key ? templateItemByKey(sections, e.item_key) : undefined;
     return {
@@ -195,24 +186,19 @@ export function buildReportModel(jobId: string): ReportModel | undefined {
       capturedAt: e.captured_at,
       section: info?.section.title ?? "Unfiled", item: info?.item.prompt ?? "—",
       featured: !!e.is_featured,
-      hasFile: !!(e as unknown as { file_key: string | null }).file_key,
+      hasFile: !!e.file_key,
     };
   });
 
   const featured = evidence.filter((e) => e.is_featured).map((e) => ({
-    id: e.id, label: e.label,
-    hasFile: !!(e as unknown as { file_key: string | null }).file_key,
-    hue: e.hue,
+    id: e.id, label: e.label, hasFile: !!e.file_key, hue: e.hue,
   }));
 
-  // ---- narrative prefill (variant-specific) ----
   const answerByKeySuffix = (suffix: string) =>
     answerText([...byKey.entries()].find(([k]) => k.endsWith(suffix))?.[1]?.answer ?? null);
 
   let prefill: Narrative;
   if (isSurvey) {
-    // Recommendations register: surveyor's register item + concern-flagged
-    // observations as candidate entries.
     const registerText = answerByKeySuffix(".grading.recommendations");
     const concernLines = sections.flatMap((s) =>
       s.items
@@ -242,7 +228,6 @@ export function buildReportModel(jobId: string): ReportModel | undefined {
     };
   } else {
     const wording = TEMPLATE_WORDING[job.template_id] ?? CLAIM_WORDING[job.claim_type] ?? CLAIM_WORDING.general!;
-    // Peril-adaptive wording for the general catch-all template.
     const peril = job.template_id === "tpl-general" ? answerByKeySuffix(".peril.type") : "";
     const typeLabel = peril ? `${peril.toLowerCase()} (general non-motor)` : wording.label;
     const discovery = answerByKeySuffix(".opening.discovery");
@@ -303,7 +288,6 @@ export function buildReportModel(jobId: string): ReportModel | undefined {
 // ---- draft/version helpers ----
 export interface ReportContent {
   narrative: Narrative;
-  // snapshot of the auto sections at submit time (locked with the version)
   auto?: Pick<ReportModel, "particulars" | "limitations" | "evidenceIndex" | "stats" | "cover">;
 }
 
@@ -312,10 +296,9 @@ export const parseContent = (raw: string | null): ReportContent | undefined => {
   try { return JSON.parse(raw) as ReportContent; } catch { return undefined; }
 };
 
-/** Narrative the editor should start from: draft > latest returned version > prefill. */
-export function initialNarrative(jobId: string, model: ReportModel): { narrative: Narrative; fromVersion?: number } {
-  const rows = db().prepare("SELECT version, status, content FROM reports WHERE job_id=? ORDER BY version").all(jobId) as
-    { version: number; status: string; content: string | null }[];
+export async function initialNarrative(jobId: string, model: ReportModel): Promise<{ narrative: Narrative; fromVersion?: number }> {
+  const rows = await query.all<{ version: number; status: string; content: string | null }>(
+    "SELECT version, status, content FROM reports WHERE job_id=? ORDER BY version", jobId);
   const latest = rows.at(-1);
   if (latest) {
     const c = parseContent(latest.content);

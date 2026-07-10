@@ -4,6 +4,6 @@ import { RolePicker } from "@/components/RolePicker";
 
 export const dynamic = "force-dynamic";
 
-export default function RoleEntry() {
-  return <RolePicker users={listUsers()} />;
+export default async function RoleEntry() {
+  return <RolePicker users={await listUsers()} />;
 }

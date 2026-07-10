@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ClientSession({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const info = resolveToken(token);
+  const info = await resolveToken(token);
   if (info.state === "invalid" || info.state === "revoked" || info.state === "expired" || !info.job)
     redirect(`/c/${token}`);
 

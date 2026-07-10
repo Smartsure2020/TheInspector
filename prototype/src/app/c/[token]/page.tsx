@@ -24,7 +24,7 @@ function LinkProblem({ title, body, token, offerNewLink }: { title: string; body
 
 export default async function ClientLanding({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const info = resolveToken(token);
+  const info = await resolveToken(token);
 
   if (info.purpose === "upload" && info.state === "valid") redirect(`/c/${token}/upload`);
 
@@ -39,7 +39,7 @@ export default async function ClientLanding({ params }: { params: Promise<{ toke
       body="No problem — these links only work around your appointment time. Request a new one below and your coordinator will sort it out." />;
 
   const job = info.job!;
-  const client = getClient(job.client_id);
+  const client = await getClient(job.client_id);
   const claimRef = job.claim_number.length > 5 ? `…${job.claim_number.slice(-5)}` : job.claim_number;
   // Per-type "please have ready" list. Safety rule: NEVER send a client onto
   // a roof or ladder (phase0 T3) — storm wording says so explicitly.

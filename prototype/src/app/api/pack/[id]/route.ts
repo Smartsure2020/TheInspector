@@ -11,11 +11,11 @@ const safe = (s: string) => s.replace(/[^\w\d\- .]+/g, "_").replace(/_{2,}/g, "_
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = getJob(id);
-  const model = buildReportModel(id);
+  const job = await getJob(id);
+  const model = await buildReportModel(id);
   if (!job || !model) return new Response("Unknown job", { status: 404 });
 
-  const evidence = listEvidence(id);
+  const evidence = await listEvidence(id);
   const entries: ZipEntry[] = [];
   const indexRows: (string | number | boolean | null)[][] = [
     ["fig", "filename", "label", "kind", "section", "checklist_item", "captured_at", "featured", "note"],
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     let filename = "";
     let note = "";
     if (e.file_key) {
-      const bytes = readUpload(e.file_key);
+      const bytes = await readUpload(e.file_key);
       if (bytes) {
         const ext = e.file_key.split(".").pop() ?? "bin";
         filename = `${String(row.fig).padStart(2, "0")}-${safe(row.section)}-${safe(e.label)}.${ext}`;

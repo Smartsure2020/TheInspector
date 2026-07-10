@@ -16,11 +16,11 @@ export const dynamic = "force-dynamic";
 
 export default async function CompletedReport({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job) return <StaffShell title="Report"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
-  const reports = listReports(id);
+  const reports = await listReports(id);
   const latest = reports.filter((r) => r.status !== "draft").at(-1);
-  const model = buildReportModel(id)!;
+  const model = (await buildReportModel(id))!;
   const isSurvey = model.jobType === "survey";
 
   // Submitted/approved versions render their locked snapshot; otherwise live preview.

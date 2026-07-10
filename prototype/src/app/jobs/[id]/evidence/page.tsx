@@ -9,12 +9,12 @@ export const dynamic = "force-dynamic";
 
 export default async function EvidenceGallery({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job) return <StaffShell title="Evidence"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
-  const tpl = getTemplate(job.template_id)!;
-  const items = listEvidence(id);
+  const tpl = (await getTemplate(job.template_id))!;
+  const items = await listEvidence(id);
   const unfiled = items.filter((e) => !e.item_key);
-  const missing = missingItems(id);
+  const missing = await missingItems(id);
   const locked = job.status === "Report completed" || job.status === "Cancelled";
   const featuredCount = items.filter((e) => e.is_featured).length;
 

@@ -9,7 +9,7 @@ const STATUSES = ["New", "Assigned", "Scheduled", "In progress", "Awaiting evide
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status } = await searchParams;
-  const all = listJobs();
+  const all = await listJobs();
   const active = status ? all.filter((j) => j.status === status) : all;
 
   const exceptions = [

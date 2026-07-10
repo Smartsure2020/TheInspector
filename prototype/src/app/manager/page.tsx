@@ -6,16 +6,19 @@ import { jobTypeLabel, listJobs, listUsers, listReports } from "@/lib/data";
 export const dynamic = "force-dynamic";
 
 export default async function ManagerDashboard() {
-  const all = listJobs();
+  const all = await listJobs();
   const queue = all.filter((j) => j.status === "Report submitted");
-  const assessors = listUsers("assessor");
+  const assessors = await listUsers("assessor");
+  const queueReports = new Map(
+    await Promise.all(queue.map(async (j) => [j.id, (await listReports(j.id)).at(-1)] as const))
+  );
 
   return (
     <StaffShell title="Manager dashboard">
       <h1 className="text-xl font-semibold text-slate-800 mb-3">Review queue</h1>
       <div className="bg-white rounded-xl border border-slate-200 mb-6">
         {queue.map((j) => {
-          const latest = listReports(j.id).at(-1);
+          const latest = queueReports.get(j.id);
           return (
             <div key={j.id} className="flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0">
               <div className="flex-1">

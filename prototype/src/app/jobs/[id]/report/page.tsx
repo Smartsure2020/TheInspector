@@ -12,12 +12,12 @@ export const dynamic = "force-dynamic";
 
 export default async function ReportBuilder({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job) return <StaffShell title="Report"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
-  const model = buildReportModel(id)!;
-  const reports = listReports(id);
+  const model = (await buildReportModel(id))!;
+  const reports = await listReports(id);
   const latest = reports.at(-1);
-  const { narrative } = initialNarrative(id, model);
+  const { narrative } = await initialNarrative(id, model);
 
   const canSubmit = job.status === "Awaiting report" || job.status === "Returned for correction";
   const readOnly = job.status === "Report completed" || job.status === "Report submitted" || job.status === "Cancelled";

@@ -11,14 +11,14 @@ export default async function JobDetail({ params, searchParams }: {
 }) {
   const { id } = await params;
   const { tab = "overview" } = await searchParams;
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job) return <StaffShell title="Job"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
 
-  const client = getClient(job.client_id);
-  const tpl = getTemplate(job.template_id)!;
-  const events = listEvents(id);
-  const appts = listAppointments(id);
-  const missing = missingItems(id);
+  const client = await getClient(job.client_id);
+  const tpl = (await getTemplate(job.template_id))!;
+  const events = await listEvents(id);
+  const appts = await listAppointments(id);
+  const missing = await missingItems(id);
   const missingKeys = new Set(missing.map((m) => m.item_key));
   const tabs = ["overview", "appointments", "checklist"];
 
@@ -37,7 +37,7 @@ export default async function JobDetail({ params, searchParams }: {
       </div>
 
       <div className="mb-4">
-        <JobActions jobId={job.id} status={job.status} assessors={listUsers("assessor")} hasAssessor={!!job.assessor_id} />
+        <JobActions jobId={job.id} status={job.status} assessors={await listUsers("assessor")} hasAssessor={!!job.assessor_id} />
       </div>
 
       <div className="flex gap-1 mb-3">

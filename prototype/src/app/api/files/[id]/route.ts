@@ -2,13 +2,19 @@
 // PROTOTYPE: unauthenticated like every other route (placeholder access model).
 // Production hardening replaces this with signed URLs + access logging (Tier B).
 import { getEvidence } from "@/lib/data";
-import { readUpload } from "@/lib/storage";
+import { readUpload, storageProvider, getPresignedUrl } from "@/lib/storage";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ev = getEvidence(id);
+  const ev = await getEvidence(id);
   if (!ev?.file_key) return new Response("Not found", { status: 404 });
-  const bytes = readUpload(ev.file_key);
+
+  if (storageProvider === "s3") {
+    const url = await getPresignedUrl(ev.file_key);
+    return Response.redirect(url, 302);
+  }
+
+  const bytes = await readUpload(ev.file_key);
   if (!bytes) return new Response("Not found", { status: 404 });
   return new Response(new Uint8Array(bytes), {
     headers: {
