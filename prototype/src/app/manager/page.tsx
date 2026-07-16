@@ -1,11 +1,12 @@
-// S4 — Manager dashboard (DB-backed, Chunk 1B; review actions land in 1I).
 import Link from "next/link";
 import { StaffShell, StatusChip } from "@/components/Chrome";
 import { jobTypeLabel, listJobs, listUsers, listReports } from "@/lib/data";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ManagerDashboard() {
+  const user = await requireRole("manager");
   const all = await listJobs();
   const queue = all.filter((j) => j.status === "Report submitted");
   const assessors = await listUsers("assessor");
@@ -14,7 +15,7 @@ export default async function ManagerDashboard() {
   );
 
   return (
-    <StaffShell title="Manager dashboard">
+    <StaffShell title="Manager dashboard" user={user}>
       <h1 className="text-xl font-semibold text-slate-800 mb-3">Review queue</h1>
       <div className="bg-white rounded-xl border border-slate-200 mb-6">
         {queue.map((j) => {

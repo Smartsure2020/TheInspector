@@ -1,21 +1,26 @@
-// S15 — Report builder (Chunk 1E): narratives prefilled from checklist
-// answers/notes/concerns, editable + autosaved; auto sections rendered
-// read-only (Limitations non-removable). Submit snapshots the version.
 import Link from "next/link";
 import { StaffShell } from "@/components/Chrome";
 import { ReportEditor } from "@/components/ReportEditor";
-import { getJob, listReports } from "@/lib/data";
+import { getJob, listReports, userNameMap } from "@/lib/data";
 import { Fragment } from "react";
 import { buildReportModel, initialNarrative } from "@/lib/report";
+import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportBuilder({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireSession();
   const { id } = await params;
   const job = await getJob(id);
-  if (!job) return <StaffShell title="Report"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
+  if (!job) return <StaffShell title="Report" user={user}><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
   const model = (await buildReportModel(id))!;
   const reports = await listReports(id);
+  const names = await userNameMap();
+  const rn = (uid: string | null) => (uid ? names[uid] ?? uid : "—");
+  for (const r of reports) {
+    if (r.submitted_by) r.submitted_by = rn(r.submitted_by);
+    if (r.reviewed_by) r.reviewed_by = rn(r.reviewed_by);
+  }
   const latest = reports.at(-1);
   const { narrative } = await initialNarrative(id, model);
 
@@ -27,7 +32,7 @@ export default async function ReportBuilder({ params }: { params: Promise<{ id: 
       : undefined;
 
   return (
-    <StaffShell title={`Report builder — ${job.job_number}`}>
+    <StaffShell title={`Report builder — ${job.job_number}`} user={user}>
       <div className="grid lg:grid-cols-2 gap-6">
         <div>
           <div className="flex items-center gap-2 mb-3">

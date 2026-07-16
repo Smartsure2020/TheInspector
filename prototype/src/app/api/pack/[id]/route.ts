@@ -1,24 +1,29 @@
-// Evidence pack download (Chunk 1E). Store-only ZIP: all non-discarded
-// evidence files named by section/item, plus index.csv (the evidence index).
-// Deliberately NO hashing/integrity chain yet (Tier B hardening, excluded).
 import { NextRequest } from "next/server";
 import { getJob, listEvidence } from "@/lib/data";
 import { buildReportModel } from "@/lib/report";
 import { readUpload } from "@/lib/storage";
 import { buildZip, csv, ZipEntry } from "@/lib/zip";
+import { getSession } from "@/lib/auth";
+import { logAccess } from "@/lib/access-log";
 
 const safe = (s: string) => s.replace(/[^\w\d\- .]+/g, "_").replace(/_{2,}/g, "_").slice(0, 80);
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getSession();
+  if (!user) return new Response("Unauthorized", { status: 401 });
+
   const { id } = await params;
   const job = await getJob(id);
   const model = await buildReportModel(id);
   if (!job || !model) return new Response("Unknown job", { status: 404 });
 
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  await logAccess(user.id, "evidence_pack", id, "download", ip);
+
   const evidence = await listEvidence(id);
   const entries: ZipEntry[] = [];
   const indexRows: (string | number | boolean | null)[][] = [
-    ["fig", "filename", "label", "kind", "section", "checklist_item", "captured_at", "featured", "note"],
+    ["fig", "filename", "label", "kind", "section", "checklist_item", "captured_at", "featured", "sha256", "note"],
   ];
 
   for (const row of model.evidenceIndex) {
@@ -37,17 +42,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     } else {
       note = "placeholder tile (seeded demo item, no file)";
     }
-    indexRows.push([row.fig, filename, e.label, row.kind, row.section, row.item, row.capturedAt, row.featured, note]);
+    const sha = (e as unknown as { sha256?: string }).sha256 ?? "";
+    indexRows.push([row.fig, filename, e.label, row.kind, row.section, row.item, row.capturedAt, row.featured, sha, note]);
   }
 
-  // UTF-8 BOM so Excel/PowerShell read the labels' dashes correctly.
   entries.push({ name: "index.csv", data: Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(csv(indexRows), "utf8")]) });
   entries.push({
     name: "README.txt",
     data: Buffer.from(
-      `PROTOTYPE evidence pack — ${job.job_number} (${job.claim_number})\n` +
-      `Generated ${new Date().toISOString()} — demo/anonymised data only, no real client data.\n` +
-      `No integrity chain/hashing yet (production hardening item).\n`,
+      `Evidence pack — ${job.job_number} (${job.claim_number})\n` +
+      `Generated ${new Date().toISOString()}\n` +
+      `SHA-256 hashes recorded at capture time; verify against index.csv.\n`,
       "utf8"
     ),
   });

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { ClientShell } from "@/components/Chrome";
 import { resolveToken, getClient } from "@/lib/data";
 import { CannotAttendButton, ClientPing, Countdown, RequestNewLinkButton } from "@/components/ClientBits";
+import { checkOtpVerified } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,9 @@ export default async function ClientLanding({ params }: { params: Promise<{ toke
   const info = await resolveToken(token);
 
   if (info.purpose === "upload" && info.state === "valid") redirect(`/c/${token}/upload`);
+
+  if ((info.state === "valid" || info.state === "too_early") && !(await checkOtpVerified(token)))
+    redirect(`/c/${token}/verify`);
 
   if (info.state === "invalid")
     return <LinkProblem token={token} offerNewLink={false} title="This link isn't recognised"

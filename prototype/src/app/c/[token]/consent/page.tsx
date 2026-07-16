@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 import { ClientShell } from "@/components/Chrome";
 import { ConsentForm } from "@/components/ClientBits";
 import { resolveToken } from "@/lib/data";
+import { checkOtpVerified } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function Consent({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  if (!(await checkOtpVerified(token))) redirect(`/c/${token}/verify`);
   const info = await resolveToken(token);
-  // Problem states get the friendly explanation on the landing page.
   if (info.state === "invalid" || info.state === "revoked" || info.state === "expired") redirect(`/c/${token}`);
   return (
     <ClientShell>

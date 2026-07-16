@@ -3,6 +3,7 @@
 // for event_log rows. Production audit hardening is Tier B, not here.
 import "server-only";
 import { query, nowIso, uuid } from "./db";
+import { sha256 } from "./crypto";
 import { ClaimType, JobStatus, JobType, TemplateSection } from "./types";
 
 // ---------- row shapes ----------
@@ -78,7 +79,7 @@ export const SYSTEM_ACTOR: Actor = { id: "system", name: "system", role: "system
 export async function logEvent(jobId: string | null, actor: Actor, eventType: string, data?: object) {
   await query.run(
     "INSERT INTO event_log (id,job_id,actor,actor_role,event_type,data,occurred_at) VALUES (?,?,?,?,?,?,?)",
-    uuid(), jobId, actor.name, actor.role, eventType, data ? JSON.stringify(data) : null, nowIso(),
+    uuid(), jobId, actor.id, actor.role, eventType, data ? JSON.stringify(data) : null, nowIso(),
   );
 }
 
@@ -107,11 +108,13 @@ export const listJobs = async (status?: string) =>
 export const getJob = async (id: string) =>
   query.get<JobRow>(`${JOB_SELECT} WHERE j.id=?`, id);
 
-export const getJobByToken = async (token: string) =>
-  query.get<JobRow>(`${JOB_SELECT} WHERE j.id = (
-    SELECT job_id FROM appointments WHERE link_token=? AND link_revoked_at IS NULL
-    UNION SELECT job_id FROM client_upload_requests WHERE link_token=? AND revoked_at IS NULL LIMIT 1)`,
-    token, token);
+export const getJobByToken = async (token: string) => {
+  const h = sha256(token);
+  return query.get<JobRow>(`${JOB_SELECT} WHERE j.id = (
+    SELECT job_id FROM appointments WHERE link_token_hash=? AND link_revoked_at IS NULL
+    UNION SELECT job_id FROM client_upload_requests WHERE link_token_hash=? AND revoked_at IS NULL LIMIT 1)`,
+    h, h);
+};
 
 export const listEvents = async (jobId: string) =>
   query.all<EventRow>("SELECT * FROM event_log WHERE job_id=? ORDER BY occurred_at, id", jobId);
@@ -142,8 +145,24 @@ export const listUsers = async (role?: string) =>
   query.all<{ id: string; name: string; role: string; title: string }>(
     `SELECT * FROM users ${role ? "WHERE role=?" : ""} ORDER BY name`, ...(role ? [role] : []));
 
+export const listMandatedAssessors = async (templateId: string) =>
+  query.all<{ id: string; name: string }>(
+    `SELECT u.id, u.name FROM users u
+     JOIN user_template_mandates m ON m.user_id = u.id
+     WHERE u.role='assessor' AND u.is_active=1 AND m.template_id=?
+     ORDER BY u.name`,
+    templateId,
+  );
+
 export const getUser = async (id: string) =>
   query.get<{ id: string; name: string; role: string; title: string }>("SELECT * FROM users WHERE id=?", id);
+
+export async function userNameMap(): Promise<Record<string, string>> {
+  const rows = await query.all<{ id: string; name: string }>("SELECT id, name FROM users");
+  const map: Record<string, string> = { system: "System", client_link: "Client" };
+  for (const r of rows) map[r.id] = r.name;
+  return map;
+}
 
 export const getClient = async (id: string) =>
   query.get<{ id: string; full_name: string; phone: string; email: string; language: string }>(
@@ -166,7 +185,9 @@ export interface TokenInfo {
 const EARLY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 export async function resolveToken(token: string): Promise<TokenInfo> {
-  const appt = await query.get<AppointmentRow>("SELECT * FROM appointments WHERE link_token=?", token);
+  const tokenHash = sha256(token);
+  const appt = await query.get<AppointmentRow>(
+    "SELECT * FROM appointments WHERE link_token_hash=?", tokenHash);
   if (appt) {
     const job = await getJob(appt.job_id);
     const info: TokenInfo = { state: "valid", purpose: "join", job, appointment: appt, scheduledStart: appt.scheduled_start };
@@ -178,7 +199,7 @@ export async function resolveToken(token: string): Promise<TokenInfo> {
     return info;
   }
   const upr = await query.get<{ job_id: string; revoked_at: string | null; expires_at: string | null }>(
-    "SELECT * FROM client_upload_requests WHERE link_token=?", token);
+    "SELECT * FROM client_upload_requests WHERE link_token_hash=?", tokenHash);
   if (upr) {
     const job = await getJob(upr.job_id);
     const info: TokenInfo = { state: "valid", purpose: "upload", job };

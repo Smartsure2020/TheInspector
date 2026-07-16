@@ -1,16 +1,16 @@
-// S13 — Evidence gallery (Chunk 1E polish): grouped by checklist section,
-// relabel/refile/feature controls, missing panel, upload states.
 import Link from "next/link";
 import { StaffShell } from "@/components/Chrome";
 import { EvidenceCard, ItemOption } from "@/components/EvidenceTools";
 import { getJob, getTemplate, listEvidence, missingItems, templateItemByKey } from "@/lib/data";
+import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function EvidenceGallery({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireSession();
   const { id } = await params;
   const job = await getJob(id);
-  if (!job) return <StaffShell title="Evidence"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
+  if (!job) return <StaffShell title="Evidence" user={user}><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
   const tpl = (await getTemplate(job.template_id))!;
   const items = await listEvidence(id);
   const unfiled = items.filter((e) => !e.item_key);
@@ -23,7 +23,7 @@ export default async function EvidenceGallery({ params }: { params: Promise<{ id
   );
 
   return (
-    <StaffShell title={`Evidence — ${job.job_number}`}>
+    <StaffShell title={`Evidence — ${job.job_number}`} user={user}>
       <div className="grid md:grid-cols-[1fr_280px] gap-6">
         <div>
           <div className="flex items-center gap-3 mb-3">

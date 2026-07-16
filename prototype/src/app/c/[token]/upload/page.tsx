@@ -1,9 +1,11 @@
 // S14 — Missing-evidence upload page (Chunk 1C: REAL uploads, link states,
 // per-item complete/incomplete from the DB).
+import { redirect } from "next/navigation";
 import { ClientShell } from "@/components/Chrome";
 import { resolveToken, getTemplate, missingItems, templateItemByKey, uploadsByItem } from "@/lib/data";
 import { RequestNewLinkButton } from "@/components/ClientBits";
 import { UploadItem } from "@/components/UploadItem";
+import { checkOtpVerified } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ const plainNames: Record<string, string> = {
 
 export default async function UploadPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  if (!(await checkOtpVerified(token))) redirect(`/c/${token}/verify`);
   const info = await resolveToken(token);
 
   if (info.state === "invalid" || !info.job)

@@ -1,15 +1,11 @@
 "use client";
-// Manager review actions (Chunk 1E — real). Approve locks the job at
-// Report completed; Return requires comments and sends it back to the
-// assessor (Returned for correction). Role check is the placeholder
-// role cookie — production auth is out of scope by instruction.
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { reviewReportAction } from "@/lib/actions";
-import { useRole } from "@/lib/role";
+import { useSession } from "@/lib/session-context";
 
 export function ManagerReview({ jobId, jobStatus, version }: { jobId: string; jobStatus: string; version?: number }) {
-  const { user } = useRole();
+  const user = useSession();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [comments, setComments] = useState("");
@@ -17,10 +13,10 @@ export function ManagerReview({ jobId, jobStatus, version }: { jobId: string; jo
   const [err, setErr] = useState("");
 
   if (jobStatus !== "Report submitted") return null;
-  if (user?.role !== "manager")
+  if (user.role !== "manager")
     return (
       <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 text-xs text-violet-800">
-        With the manager for review (v{version ?? "?"}). Switch to the Manager role on the home page to approve/return.
+        With the manager for review (v{version ?? "?"}). Sign in as a manager to approve/return.
       </div>
     );
 

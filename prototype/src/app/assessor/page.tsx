@@ -1,8 +1,7 @@
-// S3 — Assessor dashboard (DB-backed, Chunk 1B). Acting user from role cookie.
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { StaffShell, StatusChip } from "@/components/Chrome";
-import { listJobs, getUser, clientReadiness, jobTypeLabel } from "@/lib/data";
+import { listJobs, clientReadiness, jobTypeLabel } from "@/lib/data";
+import { requireRole } from "@/lib/auth";
 
 async function ReadyDots({ jobId }: { jobId: string }) {
   const r = await clientReadiness(jobId);
@@ -27,10 +26,9 @@ async function ReadyDots({ jobId }: { jobId: string }) {
 export const dynamic = "force-dynamic";
 
 export default async function AssessorDashboard() {
-  const id = (await cookies()).get("inspector.demoUser")?.value;
-  const me = id ? await getUser(id) : undefined;
+  const user = await requireRole("assessor");
   const all = await listJobs();
-  const mine = me ? all.filter((j) => j.assessor_id === me.id || !j.assessor_id) : all;
+  const mine = all.filter((j) => j.assessor_id === user.id || !j.assessor_id);
   const today = mine.filter((j) => j.status === "Scheduled" || j.status === "In progress");
 
   const groups: [string, string, string][] = [
@@ -41,7 +39,7 @@ export default async function AssessorDashboard() {
   ];
 
   return (
-    <StaffShell title="Assessor dashboard">
+    <StaffShell title="Assessor dashboard" user={user}>
       <h1 className="text-xl font-semibold text-slate-800 mb-3">Today</h1>
       <div className="grid md:grid-cols-2 gap-3 mb-6">
         {today.map((j) => (

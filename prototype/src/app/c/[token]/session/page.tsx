@@ -4,11 +4,13 @@ import { redirect } from "next/navigation";
 import { PrototypeBanner } from "@/components/Chrome";
 import { ClientRoom } from "@/components/ClientRoom";
 import { resolveToken } from "@/lib/data";
+import { checkOtpVerified } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientSession({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  if (!(await checkOtpVerified(token))) redirect(`/c/${token}/verify`);
   const info = await resolveToken(token);
   if (info.state === "invalid" || info.state === "revoked" || info.state === "expired" || !info.job)
     redirect(`/c/${token}`);

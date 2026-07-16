@@ -1,24 +1,27 @@
-// S16 — Rendered report page (Chunk 1E, variants in 1F): full document from
-// the latest version's snapshot (live model preview if nothing submitted yet),
-// version history, manager review actions, evidence pack + print downloads.
-// Two variants share the pipeline: claims assessment report and survey report
-// (no cause-of-loss; COPE findings, recommendations register, risk grading).
-// PROTOTYPE OUTPUT ONLY — placeholder branding, print = browser print.
 import Link from "next/link";
 import { Fragment } from "react";
 import { StaffShell, StatusChip } from "@/components/Chrome";
 import { ManagerReview } from "@/components/ManagerReview";
 import { PrintButton } from "@/components/PrintButton";
-import { getJob, listReports } from "@/lib/data";
+import { getJob, listReports, userNameMap } from "@/lib/data";
 import { buildReportModel, parseContent, ReportContent } from "@/lib/report";
+import { requireSession } from "@/lib/auth";
+import { SessionProvider } from "@/lib/session-context";
 
 export const dynamic = "force-dynamic";
 
 export default async function CompletedReport({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireSession();
   const { id } = await params;
   const job = await getJob(id);
-  if (!job) return <StaffShell title="Report"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
+  if (!job) return <StaffShell title="Report" user={user}><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
   const reports = await listReports(id);
+  const names = await userNameMap();
+  const rn = (uid: string | null) => (uid ? names[uid] ?? uid : "—");
+  for (const r of reports) {
+    if (r.submitted_by) r.submitted_by = rn(r.submitted_by);
+    if (r.reviewed_by) r.reviewed_by = rn(r.reviewed_by);
+  }
   const latest = reports.filter((r) => r.status !== "draft").at(-1);
   const model = (await buildReportModel(id))!;
   const isSurvey = model.jobType === "survey";
@@ -99,7 +102,8 @@ export default async function CompletedReport({ params }: { params: Promise<{ id
       ];
 
   return (
-    <StaffShell title={`Report — ${job.job_number}`}>
+    <StaffShell title={`Report — ${job.job_number}`} user={user}>
+      <SessionProvider user={user}>
       <div className="max-w-3xl">
         <div className="flex items-center gap-3 mb-4 print:hidden">
           <h1 className="text-xl font-semibold text-slate-800">
@@ -172,6 +176,7 @@ export default async function CompletedReport({ params }: { params: Promise<{ id
           </div>
         )}
       </div>
+      </SessionProvider>
     </StaffShell>
   );
 }

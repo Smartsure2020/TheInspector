@@ -11,13 +11,13 @@ must be **Decided** or **Deferred (with named owner + date)** before Phase 0 exi
 | D-03 | **Surveys in first prototype?** | (a) Deferred — claims only; (b) residential survey included; (c) both survey types | (a) Deferred. Engine is shared; add surveys once the room UX is proven | Mgmt demo / 2026-07-07 | **(c) Both survey types built.** Residential active; commercial flagged v0.1-1F-limited. Assessor workshop to validate. |
 | D-04 | **Full video recording excluded from MVP?** | (a) Excluded — screenshots + structured data only; (b) optional per job; (c) always record | (a) Excluded. Cuts storage, cost and privacy exposure; revisit with dispute experience. Needs a sanity check that stills + event log satisfy evidential needs | Mgmt demo / 2026-07-07 | **(a) Excluded.** No recording in prototype or pilot. Revisit post-pilot with dispute experience. |
 | D-05 | **High-res photo capture mandatory?** | (a) Mandatory prototype feature — templates rely on it for plates/serials/documents; (b) nice-to-have | (a) Mandatory. Video frames (~720p) cannot read a rating plate; without this the geyser and theft templates fail | Mgmt demo / 2026-07-07 | **(a) Mandatory.** Built in 1D; verified desktop-to-desktop. |
-| D-06 | **Who reviews reports? And do reports carry quantum figures?** | Reviewer: manager / senior assessor peer / claims-side reviewer. Quantum: figures vs observations-only | Manager–Reviewer role reviews all pilot reports; quantum per workshop W4 outcome | Workshop W4 + mgmt | **Pending workshop (Phase B).** Manager–Reviewer flow built; quantum question deferred to W4. |
-| D-07 | **Who owns templates?** | Named senior assessor per claim type (from workshop W2) vs one central owner | One named owner per claim type + one overall template custodian; changes versioned | Workshop W2 | **Pending workshop (Phase B).** Ownership to be assigned at W2. |
-| D-08 | **Pilot assessor group** | 2–3 named volunteers from workshop W6 | Volunteers over conscripts — adoption risk is the biggest project risk | Workshop W6 + mgmt | **Pending workshop (Phase B).** Volunteers to be identified at W6. |
+| D-06 | **Who reviews reports? And do reports carry quantum figures?** | Reviewer: manager / senior assessor peer / claims-side reviewer. Quantum: figures vs observations-only | Manager–Reviewer role reviews all pilot reports; quantum per workshop W4 outcome | Workshop 2026-07-07 + mgmt | **Manager reviews all reports.** Manager–Reviewer flow confirmed. Quantum: observations-only for now; revisit post-pilot. |
+| D-07 | **Who owns templates?** | Named senior assessor per claim type (from workshop W2) vs one central owner | One named owner per claim type + one overall template custodian; changes versioned | Workshop 2026-07-07 | **Template mandate via user management.** No individual template owners assigned. Instead: admin UI to manage users (admin/assessor/manager) and assign template mandates per user. Built as part of production hardening (G6). |
+| D-08 | **Pilot assessor group** | 2–3 named volunteers from workshop W6 | Volunteers over conscripts — adoption risk is the biggest project risk | Workshop 2026-07-07 | **All in-house staff.** Full team participates — no separate volunteer group needed. |
 | D-09 | **Pilot claim volume & mode** | Volume target and shadow vs live mode | ≥10 claims in **shadow mode** (virtual alongside existing process, outputs compared); geyser-only for the first 2 weeks. Staged data rule: role-played + anonymised historical claims first; **real-client shadow testing only after the live-data safeguard gate below is approved** | Mgmt demo / 2026-07-07 | **Shadow mode confirmed.** ≥10 claims, virtual alongside physical. Live-data safeguard gate (G4) still required before real-client data. |
 | D-10 | **What counts as a successful pilot** | Define pass/fail now, not after | Proposed: ≥8/10 assessments completed end-to-end without facilitator help; ≥8/10 reports accepted by reviewer with ≤1 correction round; capture loop <3s in real sessions; ≥2 of 3 pilot assessors say they'd choose it over the current method; client join unaided ≥80% of attempts | Mgmt demo / 2026-07-07 | **Proposed criteria accepted in principle.** Final metrics to be confirmed after workshop feedback. |
 
-| D-11 | **Video provider direction** | (a) Stay P2P only; (b) evaluate LiveKit + Daily.co, pick one; (c) commit to a single provider now | (b) Evaluate both, pick one — behind SessionAdapter only | Mgmt demo / 2026-07-07 | **(b) Evaluate LiveKit and Daily.co.** Previous Daily.co exclusion (paid) overridden by management. Build both adapters behind SessionAdapter, test side by side on the device matrix, recommend one winner based on cost/quality/POPIA/data residency. No provider code outside the adapter file. |
+| D-11 | **Video provider direction** | (a) Stay P2P only; (b) evaluate LiveKit + Daily.co, pick one; (c) commit to a single provider now | (b) Evaluate both, pick one — behind SessionAdapter only | Mgmt demo / 2026-07-07; testing completed 2026-07-13 | **LiveKit selected.** Both adapters built and tested on real devices. LiveKit wins: open-source SFU (self-hostable in af-south-1 for POPIA), TURN included, free cloud tier, strong mobile support. Daily.co adapter retained (one file, zero cost) as fallback. Set `NEXT_PUBLIC_VIDEO_ADAPTER=livekit` as default. |
 
 ## Supporting notes
 
@@ -27,10 +27,10 @@ must be **Decided** or **Deferred (with named owner + date)** before Phase 0 exi
   process.
 - **D-04:** if (b) or (c) is chosen, consent wording, storage costs and the video
   provider shortlist all change — this decision must precede the technical spike.
-- **D-11:** Daily.co was previously excluded (paid) during Phase 1 planning. Management
-  overrode that exclusion at the 2026-07-07 demo. Both LiveKit and Daily.co are now
-  approved for evaluation. The evaluation must stay behind the `SessionAdapter` interface
-  — one adapter file per provider, zero room-component changes.
+- **D-11:** Both adapters evaluated on real devices (2026-07-13). LiveKit selected for
+  self-hosting capability (POPIA data residency), included TURN relay, and strong mobile
+  performance. Daily.co adapter stays in the codebase (one file) as a tested fallback.
+  P2P adapter also remains for local dev without provider credentials.
 - **D-09:** shadow mode means no live claim depends on the prototype — which is what
   makes deferring login/security acceptable in this phase. Pilot data is staged:
 
@@ -54,9 +54,10 @@ must be **Decided** or **Deferred (with named owner + date)** before Phase 0 exi
 - **D-10:** whatever is agreed here becomes the Phase 2 pilot acceptance criteria
   verbatim. Resist vague success definitions.
 
-## Decisions explicitly NOT being taken now (parked to production hardening)
+## Decisions moved to production hardening (green-lighted 2026-07-13)
 
 Authentication approach, MFA policy, retention periods, download controls, operator
-agreements, final consent wording, data-residency stance, hosting choice. These are
-documented in the blueprint (docs 09–10) and in the scope split (doc 02 Tier B); they
-are scheduled for the production-hardening gate, not Phase 0.
+agreements, final consent wording, data-residency stance, hosting choice. These were
+parked during Phase 0/1 and are now approved for implementation as part of production
+hardening (Phase H). Templates signed off as-is at the 2026-07-07 workshop (G3 passed).
+All in-house staff participate in the pilot (D-08). LiveKit is the selected provider (D-11).

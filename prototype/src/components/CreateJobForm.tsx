@@ -10,12 +10,15 @@ interface Tpl {
 }
 interface Assessor { id: string; name: string }
 
-export function CreateJobForm({ templates, assessors }: { templates: Tpl[]; assessors: Assessor[] }) {
+export function CreateJobForm({ templates, assessors, mandates }: {
+  templates: Tpl[]; assessors: Assessor[]; mandates: Record<string, string[]>;
+}) {
   const [templateId, setTemplateId] = useState(templates.find((t) => !t.is_reference_only)?.id ?? "");
   const tpl = templates.find((t) => t.id === templateId);
   const isSurvey = tpl?.job_type === "survey";
   const claims = templates.filter((t) => t.job_type === "assessment");
   const surveys = templates.filter((t) => t.job_type === "survey");
+  const eligible = assessors.filter((a) => mandates[a.id]?.includes(templateId));
 
   const field = "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 placeholder:text-slate-400";
   const label = "block text-xs font-medium text-slate-500 mt-3 mb-1";
@@ -70,8 +73,9 @@ export function CreateJobForm({ templates, assessors }: { templates: Tpl[]; asse
           <label className={label}>{isSurvey ? "Surveyor" : "Assessor"}</label>
           <select name="assessor_id" className={field} defaultValue="">
             <option value="">— assign later —</option>
-            {assessors.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            {eligible.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
+          {eligible.length === 0 && <p className="text-xs text-amber-600 mt-1">No assessors have a mandate for this template.</p>}
           <label className={label}>Priority</label>
           <select name="priority" className={field}><option>Normal</option><option>High</option></select>
         </section>

@@ -1,13 +1,14 @@
-// S2 — Admin dashboard (DB-backed, Chunk 1B).
 import Link from "next/link";
 import { StaffShell, StatusChip } from "@/components/Chrome";
 import { jobTypeLabel, listJobs } from "@/lib/data";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["New", "Assigned", "Scheduled", "In progress", "Awaiting evidence", "Awaiting report", "Report submitted", "Returned for correction", "Report completed", "Cancelled", "No-show"];
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+  const user = await requireRole("admin");
   const { status } = await searchParams;
   const all = await listJobs();
   const active = status ? all.filter((j) => j.status === status) : all;
@@ -20,10 +21,13 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
   ] as const;
 
   return (
-    <StaffShell title="Admin dashboard">
+    <StaffShell title="Admin dashboard" user={user}>
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-xl font-semibold text-slate-800">Assessment &amp; survey pipeline</h1>
-        <Link href="/jobs/new" className="ml-auto bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium">
+        <Link href="/admin/users" className="ml-auto bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg px-4 py-2 text-sm font-medium">
+          Manage users
+        </Link>
+        <Link href="/jobs/new" className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium">
           + New job
         </Link>
       </div>

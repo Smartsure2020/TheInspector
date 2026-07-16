@@ -4,6 +4,7 @@
 // ?-style params to $N and the same SCHEMA_SQL DDL runs on both engines (kept
 // Postgres-portable by design since Chunk 1B).
 import { SCHEMA_SQL } from "./schema";
+import { applyHardening } from "./schema-hardening";
 
 export interface QueryRunner {
   run(sql: string, ...params: unknown[]): Promise<{ changes: number }>;
@@ -66,6 +67,7 @@ class SqliteRunner implements QueryRunner {
     conn.exec(SCHEMA_SQL);
     this.conn = conn;
     this.ready = true;
+    await applyHardening(this, "sqlite");
 
     const count = conn.prepare("SELECT COUNT(*) AS n FROM jobs").get() as { n: number };
     if (count.n === 0) {
@@ -141,6 +143,7 @@ class PgRunner implements QueryRunner {
   private async bootstrap() {
     await this.pool.query(SCHEMA_SQL);
     this.ready = true;
+    await applyHardening(this, "postgres");
     const result = await this.pool.query("SELECT COUNT(*) AS n FROM jobs");
     if ((result.rows[0]?.n ?? 0) === 0) {
       const { runSeed } = await import("./seed");

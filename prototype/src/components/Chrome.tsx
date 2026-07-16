@@ -1,14 +1,14 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useRole } from "@/lib/role";
+import { useTransition } from "react";
+import { logoutAction } from "@/lib/auth-actions";
 
 export function PrototypeBanner({ client = false }: { client?: boolean }) {
   return (
     <div className="bg-amber-400 text-amber-950 text-center text-xs font-semibold tracking-wide py-1 px-2">
       {client
         ? "PROTOTYPE — demonstration only"
-        : "PROTOTYPE — placeholder access · role-play / anonymised data only · no real client data"}
+        : "PROTOTYPE — role-play / anonymised data only · no real client data"}
     </div>
   );
 }
@@ -19,23 +19,14 @@ const roleHome: Record<string, string> = {
   manager: "/manager",
 };
 
-export function StaffShell({ children, title }: { children: React.ReactNode; title: string }) {
-  const { user, setUser, ready } = useRole();
-  const router = useRouter();
+interface StaffUser {
+  name: string;
+  role: string;
+  title: string;
+}
 
-  if (!ready) return null;
-  if (!user)
-    return (
-      <div className="min-h-screen bg-slate-100">
-        <PrototypeBanner />
-        <div className="p-10 text-center text-slate-600">
-          No role selected.{" "}
-          <Link className="text-blue-700 underline" href="/">
-            Choose a role
-          </Link>
-        </div>
-      </div>
-    );
+export function StaffShell({ children, title, user }: { children: React.ReactNode; title: string; user: StaffUser }) {
+  const [pending, startTransition] = useTransition();
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -50,12 +41,10 @@ export function StaffShell({ children, title }: { children: React.ReactNode; tit
         </span>
         <button
           className="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1"
-          onClick={() => {
-            setUser(null);
-            router.push("/");
-          }}
+          disabled={pending}
+          onClick={() => startTransition(() => logoutAction())}
         >
-          Switch role
+          {pending ? "Signing out…" : "Sign out"}
         </button>
       </header>
       <main className="p-4 max-w-6xl mx-auto">{children}</main>

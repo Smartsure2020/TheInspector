@@ -1,9 +1,15 @@
-// S1 — Placeholder role entry (DB-backed users, Chunk 1B).
-import { listUsers } from "@/lib/data";
-import { RolePicker } from "@/components/RolePicker";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function RoleEntry() {
-  return <RolePicker users={await listUsers()} />;
+const roleHome: Record<string, string> = {
+  admin: "/admin",
+  assessor: "/assessor",
+  manager: "/manager",
+};
+
+export default async function Home() {
+  const user = await getSession();
+  redirect(user ? (roleHome[user.role] ?? "/admin") : "/login");
 }

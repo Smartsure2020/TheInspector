@@ -1,18 +1,19 @@
-// S6 — Job detail hub (DB-backed, Chunk 1B). Tabs via ?tab= links.
 import Link from "next/link";
 import { StaffShell, StatusChip } from "@/components/Chrome";
 import { JobActions } from "@/components/JobActions";
-import { getJob, getTemplate, listAppointments, listEvents, listUsers, missingItems, getClient } from "@/lib/data";
+import { getJob, getTemplate, listAppointments, listEvents, listMandatedAssessors, missingItems, getClient, userNameMap } from "@/lib/data";
+import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function JobDetail({ params, searchParams }: {
   params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }>;
 }) {
+  const user = await requireSession();
   const { id } = await params;
   const { tab = "overview" } = await searchParams;
   const job = await getJob(id);
-  if (!job) return <StaffShell title="Job"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
+  if (!job) return <StaffShell title="Job" user={user}><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
 
   const client = await getClient(job.client_id);
   const tpl = (await getTemplate(job.template_id))!;
@@ -20,10 +21,12 @@ export default async function JobDetail({ params, searchParams }: {
   const appts = await listAppointments(id);
   const missing = await missingItems(id);
   const missingKeys = new Set(missing.map((m) => m.item_key));
+  const names = await userNameMap();
+  const actorName = (id: string) => names[id] ?? id;
   const tabs = ["overview", "appointments", "checklist"];
 
   return (
-    <StaffShell title={`Job ${job.job_number}`}>
+    <StaffShell title={`Job ${job.job_number}`} user={user}>
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <h1 className="text-xl font-semibold text-slate-800">{job.job_number}</h1>
         <StatusChip status={job.status} />
@@ -37,7 +40,7 @@ export default async function JobDetail({ params, searchParams }: {
       </div>
 
       <div className="mb-4">
-        <JobActions jobId={job.id} status={job.status} assessors={await listUsers("assessor")} hasAssessor={!!job.assessor_id} />
+        <JobActions jobId={job.id} status={job.status} assessors={await listMandatedAssessors(job.template_id)} hasAssessor={!!job.assessor_id} />
       </div>
 
       <div className="flex gap-1 mb-3">
@@ -73,7 +76,7 @@ export default async function JobDetail({ params, searchParams }: {
                   <li key={e.id} className="text-xs text-slate-600 flex gap-2">
                     <span className="text-slate-400 whitespace-nowrap">{e.occurred_at}</span>
                     <span>
-                      <span className="text-slate-500">{e.actor}:</span>{" "}
+                      <span className="text-slate-500">{actorName(e.actor)}:</span>{" "}
                       {e.event_type === "seed_history" ? d.text : (
                         <><b>{e.event_type}</b>{d.from ? ` (${d.from} → ${d.to})` : ""}{d.reason ? ` — ${d.reason}` : ""}{d.when ? ` — ${d.when}` : ""}{d.assessor ? ` — ${d.assessor}` : ""}{d.version ? ` — v${d.version}` : ""}</>
                       )}

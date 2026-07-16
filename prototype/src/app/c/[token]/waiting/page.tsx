@@ -6,11 +6,13 @@ import { ClientShell } from "@/components/Chrome";
 import { resolveToken, getClient } from "@/lib/data";
 import { ClientPing } from "@/components/ClientBits";
 import { WaitingLive } from "@/components/WaitingLive";
+import { checkOtpVerified } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function WaitingRoom({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  if (!(await checkOtpVerified(token))) redirect(`/c/${token}/verify`);
   const info = await resolveToken(token);
   if (info.state === "invalid" || info.state === "revoked" || info.state === "expired") redirect(`/c/${token}`);
   const first = info.job ? (await getClient(info.job.client_id))?.full_name.split(" ")[0] : "there";

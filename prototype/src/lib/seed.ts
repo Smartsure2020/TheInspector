@@ -3,13 +3,28 @@
 // ALL DATA IS FAKE / ROLE-PLAY — no real client data permitted (phase0 D-09).
 import type { QueryRunner } from "./db";
 import { users, clients, templates, jobs, evidence, seedResponses, templateById } from "./fixtures";
+import bcrypt from "bcryptjs";
+import { sha256 } from "./crypto";
 
 const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
+const DEV_PASSWORD = "inspector-dev-2026";
+const DEMO_EMAILS: Record<string, string> = {
+  "u-lerato": "lerato@acorn.demo",
+  "u-sipho": "sipho@acorn.demo",
+  "u-anje": "anje@acorn.demo",
+  "u-craig": "craig@acorn.demo",
+};
+
 export async function runSeed(q: QueryRunner) {
+  const passwordHash = bcrypt.hashSync(DEV_PASSWORD, 10);
+
   await q.transaction(async (tx) => {
     for (const u of users)
-      await tx.run("INSERT INTO users (id,name,role,title) VALUES (?,?,?,?)", u.id, u.name, u.role, u.title);
+      await tx.run(
+        "INSERT INTO users (id,name,role,title,email,password_hash,is_active,created_at) VALUES (?,?,?,?,?,?,1,?)",
+        u.id, u.name, u.role, u.title, DEMO_EMAILS[u.id] ?? null, passwordHash, now(),
+      );
 
     for (const c of clients)
       await tx.run(
@@ -44,24 +59,25 @@ export async function runSeed(q: QueryRunner) {
           j.status === "No-show" ? "no_show"
           : j.status === "Awaiting evidence" || j.status === "In progress" ? "completed"
           : "scheduled";
+        const tokenHash = j.token ? sha256(j.token) : null;
         await tx.run(
           `INSERT INTO appointments
-            (id,job_id,attempt_number,scheduled_start,duration_minutes,status,no_show_reason,link_token,link_expires_at,created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            (id,job_id,attempt_number,scheduled_start,duration_minutes,status,no_show_reason,link_token,link_token_hash,link_expires_at,created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
           crypto.randomUUID(), j.id, Math.max(j.attempt, 1),
           j.scheduledStart ?? "2026-07-03 10:00", j.durationMin ?? 45,
           j.status === "In progress" ? "scheduled" : apptStatus,
           j.status === "No-show" ? "did_not_join" : null,
-          j.token ?? null, "2026-12-31 23:59", now());
+          j.token ?? null, tokenHash, "2026-12-31 23:59", now());
       }
     }
 
     // j6 gets an upload token so /c/demo-upload/upload resolves.
     await tx.run(
       `INSERT INTO appointments
-        (id,job_id,attempt_number,scheduled_start,duration_minutes,status,no_show_reason,link_token,link_expires_at,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      crypto.randomUUID(), "j6", 1, "2026-07-02 14:00", 45, "completed", null, "demo-upload", "2026-12-31 23:59", now());
+        (id,job_id,attempt_number,scheduled_start,duration_minutes,status,no_show_reason,link_token,link_token_hash,link_expires_at,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      crypto.randomUUID(), "j6", 1, "2026-07-02 14:00", 45, "completed", null, "demo-upload", sha256("demo-upload"), "2026-12-31 23:59", now());
 
     for (const e of evidence)
       await tx.run(
@@ -88,17 +104,27 @@ export async function runSeed(q: QueryRunner) {
           (id,job_id,version,status,submitted_at,submitted_by,reviewed_at,reviewed_by,review_comments)
           VALUES (?,?,?,?,?,?,?,?,?)`,
         ...args);
-    await insReport(crypto.randomUUID(), "j8", 1, "submitted", "2026-07-03 16:05", "Sipho Demo", null, null, null);
-    await insReport(crypto.randomUUID(), "j9", 1, "returned", "2026-07-03 08:30", "Anje Demo", "2026-07-03 09:40", "Craig Demo",
+    await insReport(crypto.randomUUID(), "j8", 1, "submitted", "2026-07-03 16:05", "u-sipho", null, null, null);
+    await insReport(crypto.randomUUID(), "j9", 1, "returned", "2026-07-03 08:30", "u-anje", "2026-07-03 09:40", "u-craig",
       JSON.stringify({ cause: "State the mechanism basis for the cause finding." }));
-    await insReport(crypto.randomUUID(), "j10", 1, "returned", "2026-07-02 09:00", "Sipho Demo", "2026-07-02 11:00", "Craig Demo",
+    await insReport(crypto.randomUUID(), "j10", 1, "returned", "2026-07-02 09:00", "u-sipho", "2026-07-02 11:00", "u-craig",
       JSON.stringify({ summary: "Tighten the summary." }));
-    await insReport(crypto.randomUUID(), "j10", 2, "approved", "2026-07-02 14:00", "Sipho Demo", "2026-07-02 15:30", "Craig Demo", null);
-    await insReport(crypto.randomUUID(), "j16", 1, "submitted", "2026-07-04 10:15", "Sipho Demo", null, null, null);
+    await insReport(crypto.randomUUID(), "j10", 2, "approved", "2026-07-02 14:00", "u-sipho", "2026-07-02 15:30", "u-craig", null);
+    await insReport(crypto.randomUUID(), "j16", 1, "submitted", "2026-07-04 10:15", "u-sipho", null, null, null);
 
     await tx.run(
       `INSERT INTO sessions (id,job_id,assessor_id,started_at,client_joined_at,consent_name,consent_accepted_at,consent_text_version)
         VALUES (?,?,?,?,?,?,?,?)`,
       crypto.randomUUID(), "j5", "u-sipho", "2026-07-04 09:02", "2026-07-04 09:01", "Test Insured 05", "2026-07-04 09:00", "draft-1");
+
+    // Seed template mandates — assessors get all active templates
+    const assessors = users.filter((u) => u.role === "assessor");
+    const activeTemplates = templates.filter((t) => !t.referenceOnly);
+    for (const u of assessors)
+      for (const t of activeTemplates)
+        await tx.run(
+          "INSERT INTO user_template_mandates (id,user_id,template_id,assigned_by,assigned_at) VALUES (?,?,?,?,?)",
+          crypto.randomUUID(), u.id, t.id, "u-lerato", now(),
+        );
   });
 }

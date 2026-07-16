@@ -1,12 +1,21 @@
-{
+﻿{
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "inspector-prototype",
+      "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "prototype", "run", "dev"],
+      "runtimeArgs": ["run", "dev"],
       "port": 3000,
-      "autoPort": true
+      "autoPort": true,
+      "cwd": "prototype"
+    },
+    {
+      "name": "prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 3000,
+      "autoPort": true,
+      "cwd": "prototype"
     }
   ]
 }

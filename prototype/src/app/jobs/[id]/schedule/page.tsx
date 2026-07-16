@@ -1,19 +1,19 @@
-// S7 — Scheduling (DB-backed, Chunk 1B). Generates a real appointment + link;
-// ?done=1 shows the active link + paste-ready message (manual send in Phase 1).
 import { StaffShell } from "@/components/Chrome";
 import { durationForClaimType, getJob, getClient, jobTypeLabel, listAppointments } from "@/lib/data";
 import { scheduleAction } from "@/lib/actions";
 import { CopyButton } from "@/components/CopyButton";
+import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function Schedule({ params, searchParams }: {
   params: Promise<{ id: string }>; searchParams: Promise<{ done?: string }>;
 }) {
+  const user = await requireSession();
   const { id } = await params;
   const { done } = await searchParams;
   const job = await getJob(id);
-  if (!job) return <StaffShell title="Schedule"><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
+  if (!job) return <StaffShell title="Schedule" user={user}><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
   const client = await getClient(job.client_id);
   const active = (await listAppointments(id)).filter((a) => a.status === "scheduled" && !a.link_revoked_at).at(-1);
   const canSchedule = ["Assigned", "Scheduled", "No-show"].includes(job.status);
@@ -34,7 +34,7 @@ export default async function Schedule({ params, searchParams }: {
   const defTime = `${String(soon.getHours()).padStart(2, "0")}:${String(soon.getMinutes()).padStart(2, "0")}`;
 
   return (
-    <StaffShell title={`Schedule — ${job.job_number}`}>
+    <StaffShell title={`Schedule — ${job.job_number}`} user={user}>
       <div className="max-w-xl">
         <h1 className="text-xl font-semibold text-slate-800 mb-1">
           {job.status === "No-show" ? `Reschedule (attempt ${job.attempt_count + 1})` : job.status === "Scheduled" ? "Reschedule appointment" : "Schedule appointment"}
