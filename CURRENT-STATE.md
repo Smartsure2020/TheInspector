@@ -14,6 +14,29 @@ Feature-complete prototype with a real (but un-deployed) security layer.
 **Real client data: NO-GO.** **Staging: not deployed.** Internal staff-only pilot
 on fake data: GO (per `staging-go-no-go-checklist.md`).
 
+## Current position (recorded 2026-10-06, after `f119f16`)
+
+| Item | Status |
+|---|---|
+| F19 (OTP resend cooldown + hourly cap) | **Closed** (`6007ec2`) |
+| F21 (OTP codes from a CSPRNG) | **Closed** (`6007ec2`) |
+| Twilio abuse/spend risk | **Reduced, not production-final.** Per-link limits (60 s cooldown, 5/hour, 3 attempts) bound it, but there is no per-phone or per-IP limit yet, and F22 (auto-send on page render) and F23 (concurrency race) remain. |
+| Staff-only, fake-data staging | **May proceed after manual provisioning** (accounts and spend still need your approval; nothing is provisioned or deployed). |
+| Real-client pilot | **NO-GO** |
+
+Required before any real-client pilot / production (not started; each needs explicit approval):
+
+| # | Item | Requirement |
+|---|---|---|
+| F22 | First SMS sent on verify-page render | **Required before real-client pilot.** Preferred behaviour: do **not** auto-send on page render; send only after the client taps **"Text me a code"**. |
+| F23 | OTP rate-limit check is read-then-insert (concurrency race) | **Concurrency hardening required before production / real-client use.** Not a blocker for fake-data staging. |
+| F24 | UTC timestamps parsed without `Z` in `data.ts` (skew on non-UTC hosts) | Small correctness fix; **recommend before the next pilot rehearsal.** Vercel runs in UTC, so staging is not blocked. |
+| F18 | Raw, staff-copyable link tokens stored | Design decision (likely show-once link + regenerate/revoke) before real-client pilot. Not started. |
+| F2 | Uploads capped at 3.5 MB | Direct-to-S3 upload required before real-client pilot. Not started. |
+| G1/G2/G3 | Mobile/provider re-test; workshop/template evidence | Required before real-client pilot / final provider decision. |
+
+Deployment and manual provisioning remain **paused** until accounts and spend are approved.
+
 ## Mobile / provider testing — note
 
 Mobile/provider testing is believed to have been performed previously across Chrome, Firefox and iPhone, with passing results, but the filed evidence has not yet been located. This does not block technical staging setup because staging remains staff-only and fake-data only. The formal mobile/provider test pack must be rerun or recovered before any real-client pilot, final provider decision, or G2/G3 gate closure.

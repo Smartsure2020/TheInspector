@@ -265,9 +265,9 @@ Test-process note: my first "bypass the countdown" attempt did nothing because R
 | # | Finding | Severity | Status |
 |---|---|---|---|
 | F21 | OTP codes were generated with `Math.random()`. | Medium | **Fixed** (`6007ec2`) |
-| F22 | Link-preview/security scanners that follow `/c/<token>` → `/verify` can trigger the first SMS (page render sends it). The new limits bound this to 1 send per cooldown and 5 per hour per link, but it can still spend an SMS and set a cooldown before the real client arrives. | Low–Medium | Open — option: send the first code only on an explicit user action ("Text me a code"). Decide before real-client pilot. |
-| F23 | Rate-limit checks are read-then-insert, so two simultaneous requests could both pass and send two SMS (still bounded: the next request sees both rows). | Low | Noted |
-| F24 | `data.ts` parses stored UTC timestamps without a `Z` (e.g. link expiry), so on a server whose timezone is not UTC (this laptop is UTC+2) link expiry/early-window checks are skewed by the offset. Vercel runs in UTC so staging is unaffected; the new OTP code uses explicit UTC. | Low (staging) | Open — fix before relying on local-time hosts |
+| F22 | **[Required before real-client pilot — preferred: send only after the client taps "Text me a code"]** Link-preview/security scanners that follow `/c/<token>` → `/verify` can trigger the first SMS (page render sends it). The new limits bound this to 1 send per cooldown and 5 per hour per link, but it can still spend an SMS and set a cooldown before the real client arrives. | Low–Medium | Open — option: send the first code only on an explicit user action ("Text me a code"). Decide before real-client pilot. |
+| F23 | **[Concurrency hardening required before production/real-client use; not a staging blocker]** Rate-limit checks are read-then-insert, so two simultaneous requests could both pass and send two SMS (still bounded: the next request sees both rows). | Low | Noted |
+| F24 | **[Fix before next pilot rehearsal; staging not blocked (Vercel = UTC)]** `data.ts` parses stored UTC timestamps without a `Z` (e.g. link expiry), so on a server whose timezone is not UTC (this laptop is UTC+2) link expiry/early-window checks are skewed by the offset. Vercel runs in UTC so staging is unaffected; the new OTP code uses explicit UTC. | Low (staging) | Open — fix before relying on local-time hosts |
 
 ### F18 — recorded as a pre-real-client-pilot design decision (not started)
 
@@ -285,3 +285,9 @@ Test-process note: my first "bypass the countdown" attempt did nothing because R
 1. **Approvals/accounts (yours):** Vercel plan or alternative host; AWS af-south-1 (RDS, S3, IAM key, regional RDS CA); Twilio; LiveKit Cloud — `manual-cloud-setup-checklist.md`. Nothing was created. The OTP limits above bound Twilio spend and abuse once the account exists.
 2. **Before any real-client pilot:** F18 design decision; F22 decision; direct-to-S3 upload (F2); formal mobile/provider re-test (G1/G2) and workshop/template evidence (G3).
 3. Then: deploy protected preview and run the staging checks.
+
+---
+
+## 12. Position after `f119f16` (recorded 2026-10-06)
+
+F19 and F21 closed. Twilio abuse risk reduced, not production-final. Staff-only fake-data staging may proceed after manual provisioning; **real-client pilot remains NO-GO**. F22 (required before real-client pilot), F23 (before production), F24 (before next pilot rehearsal), F18 and direct-to-S3 upload are recorded and **not started**. Deployment is paused until accounts and spend are approved. See `CURRENT-STATE.md` → "Current position".

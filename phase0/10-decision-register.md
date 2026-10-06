@@ -107,3 +107,14 @@ See `CURRENT-STATE.md` for the consolidated status.
 - **F20 — documented operational risk:** URL-path tokens are sensitive; staging logs, screenshots and browser history must be treated as sensitive. Not a blocker for fake-data staff-only staging.
 - **New for decision before real-client pilot:** F22 (first SMS sent on page render; consider an explicit "text me a code" action); F24 (UTC timestamp parsing on non-UTC hosts).
 - **Unchanged:** nothing deployed; no cloud resources; no secrets; Vercel/AWS/Twilio/LiveKit approvals outstanding; real client data NO-GO.
+
+### Update 2026-10-06 (latest) — position recorded after `f119f16`
+
+- **Closed:** F19 (OTP resend cooldown + hourly cap), F21 (CSPRNG for OTP codes).
+- **Twilio abuse risk:** reduced but not production-final (per-link limits only; F22/F23 outstanding; no per-phone/per-IP limit).
+- **Staff-only fake-data staging:** may proceed after manual provisioning (accounts/spend not yet approved). **Real-client pilot: NO-GO.**
+- **F22 — required before real-client pilot.** Preferred future behaviour: do not auto-send SMS on verify-page render; send only after the client taps "Text me a code". Not started; needs explicit approval.
+- **F23 — concurrency hardening required before production / real-client usage**; not a blocker for fake-data staging.
+- **F24 — small timestamp-correctness issue**; recommend fixing before the next pilot rehearsal; Vercel runs in UTC so staging is not blocked.
+- **Not started (awaiting explicit approval):** F18 (link-storage design decision), F22, direct-to-S3 upload.
+- **Deployment / manual provisioning:** paused until accounts and spend are approved.
