@@ -130,8 +130,8 @@ Approved by Juan-Paul: F1, F3, F5, and F2 **partially**. Still **no deploy, no p
 | # | Finding | Severity | Status |
 |---|---|---|---|
 | F14 | **OTP bypass.** `checkOtpVerified` accepted any non-empty cookie named `inspector.otp.<token>`; anyone with a link could skip SMS verification by setting it. | High | **Fixed** (value validated against a really-verified challenge, timing-safe, 8 h; cookie path widened to `/` so it also reaches `/api/*`). Existing client sessions re-verify once. |
-| F15 | `otp_challenges.link_token` stores the **raw** link token, undoing the link-token hashing elsewhere. | Medium | Open — needs a migration (store `sha256(token)`); not in approved scope. |
-| F16 | Client server actions that take a link `token` (e.g. `uploadEvidenceAction`, readiness pings) check the link only — **not** OTP verification. Pages are gated; direct action calls are not. | Medium–High | Open — recommend extending the `isOtpVerified` check to these actions. Needs your OK. |
+| F15 | `otp_challenges.link_token` stored the **raw** link token, undoing the link-token hashing elsewhere. | Medium | **Fixed in `d22d82d`** — see §10. |
+| F16 | Client server actions that take a link `token` (e.g. `uploadEvidenceAction`, readiness pings) checked the link only — **not** OTP verification. Pages were gated; direct action calls were not. | Medium–High | **Fixed in `d22d82d`** — see §10. |
 | F17 | Video-route auth does 2–4 small DB lookups per call (the P2P channel polls ~1/s). Fine for staging. P2P in-memory signaling cannot work across serverless instances (reinforces LiveKit as staging default). | Low | Noted |
 
 ### Verification
@@ -151,3 +151,67 @@ Approved by Juan-Paul: F1, F3, F5, and F2 **partially**. Still **no deploy, no p
 See `manual-cloud-setup-checklist.md`. Needs your approvals/accounts: Vercel plan (or alternative host), AWS af-south-1 (enable region, RDS Postgres, S3 bucket, IAM user + key, regional RDS CA bundle), Twilio, LiveKit Cloud. Then: link Vercel project, set env vars per `required-secrets-and-env-vars.md`, deploy a protected preview, run the staging checks.
 
 > **Gate numbering note:** repo IDs are canonical — G1 mobile verification, G2 provider decision, G3 template sign-off (`handover/06-DEFERRED-GATES.md`). Earlier discussion used workshop / mobile / provider as G1 / G2 / G3. Statuses are recorded by activity in `CURRENT-STATE.md`.
+
+---
+
+## 10. Update — F15 and F16 fixed (commit `d22d82d`, 2026-10-06)
+
+Still **no deploy, no cloud resources, no secrets**. Fake/internal data only.
+
+### F15 — OTP link tokens hashed at rest
+
+| Item | Result |
+|---|---|
+| Storage | `otp_challenges.link_token_hash = sha256(token)`; the raw `link_token` column no longer exists on fresh databases. All lookups use the hash. |
+| Migration (idempotent, SQLite + Postgres) | add `link_token_hash` → backfill `sha256(raw)` → **overwrite** the raw values → drop old index and column → compact (`VACUUM` / `VACUUM FULL`) so the old bytes are physically gone. Guarded by a column-existence check, safe to re-run. |
+| Cookie | Name is `inspector.otp.<first 16 hex of sha256(token)>`; value is derived from hashes only. The raw token is no longer in the cookie name (the cookie is sent on every path since the F1 fix). |
+| Logs | No raw token or OTP-link value is logged anywhere (checked server logs during the runs). |
+| Extra tightening | `sendOtpAction`/`verifyOtpAction` refuse revoked/expired/invalid links — an old link can no longer trigger an SMS. |
+
+### F16 — client server actions gated on link + OTP
+
+New `checkClientAccess()` (`lib/client-access.ts`): the link must resolve to a real job, be in an allowed state (not revoked/expired/cancelled), have an allowed purpose, and the OTP cookie must validate against a verified challenge **for that exact link**.
+
+| Action | Gate | On failure |
+|---|---|---|
+| `uploadEvidenceAction` | state must be `valid` (it previously also accepted **expired** links) + OTP | returns `{error, needsOtp?}`; UI shows the message, sends client to `/verify` if OTP missing |
+| `consentAction`, `consentDeclineAction`, `cannotAttendAction` | join link, `valid`/`too_early` + OTP | redirect to `/verify` (OTP) or landing (link) |
+| `clientPingAction` | join link, `valid`/`too_early` + OTP | silent no-op, nothing written |
+| `requestNewLinkAction` | token must resolve to a job; **no OTP/active-state** | **Deliberate exception**: an expired/revoked-link client must be able to ask for a new link. Writes one audit event only. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| Secret scan (diff + tracked files) | Clean |
+| `npx tsc --noEmit` | Clean |
+| `npm run build` | Clean |
+| `npm run qa:smoke` (production, default env, fresh book) | **33/33** |
+| Authorization matrix (video routes), re-run for the new storage/cookie scheme + legacy-format cookie | **37/37** |
+| Migration on **SQLite** from an old-schema DB with raw tokens | 7/7: column dropped, hashes = sha256(raw), rows kept, old index gone, **raw tokens absent from DB + WAL bytes**, none in server log |
+| Migration on **Postgres 16** (Docker, throwaway) from an old-schema table | hash backfilled and matches, rows kept, raw token absent from table text and server log, new index present |
+| Real OTP flow → client upload | Pass (stored with SHA-256) |
+| Upload with OTP invalidated server-side (page already loaded) | Refused, nothing written, client sent to `/verify` |
+| Upload with link **expired** / **revoked** mid-session | Refused ("This link is no longer active…"), nothing written |
+| Oversize (4 MB) / wrong type | Refused with clear copy, nothing written |
+| Recovery after restoring OTP/link | Upload works again |
+| Consent action with OTP invalidated (page already loaded) | Refused, redirected to `/verify`, **0** `consent_accepted` events |
+| Same consent action with valid OTP (control) | Advances to `/check`, 1 event |
+
+Test-process notes (for honesty): two of my own test attempts were flawed and were redone — one targeted the wrong table when "expiring" the link, one clicked a disabled button. Neither reflected a product defect; the corrected runs above are the evidence.
+
+### New / residual findings
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| F18 | `appointments.link_token` and `client_upload_requests.link_token` still store the **raw** token in plaintext (a comment in `schema.ts` says "hashed at hardening"). Staff need to copy/send the link, so removing it is a design change (show-once link + regenerate), not a column drop. Lookups already use the hash. | Medium | **Open — needs a decision** before any real-client pilot |
+| F19 | OTP issuance has no cooldown or per-link/IP rate limit: after a challenge's 3 attempts are used, the next `/verify` visit issues a new code. A holder of a link can trigger repeated SMS to the client (cost/spam) and make repeated 3-guess attempts. 6-digit space makes brute force slow but not impossible over time. | Medium | **Open** — recommend per-link resend cooldown + lockout before any real-client pilot |
+| F20 | Link tokens still appear in URL paths (`/c/<token>`) by design; reverse-proxy/Vercel access logs will contain them. Treat logs as sensitive; consider short-lived tokens or POST-based exchange later. | Low–Medium | Noted |
+
+### Remaining blockers before a staging deploy
+
+1. **Approvals/accounts (yours):** Vercel plan or alternative host; AWS af-south-1 RDS/S3 spend + IAM key + regional RDS CA; Twilio; LiveKit Cloud — see `manual-cloud-setup-checklist.md`. **Nothing was created.**
+2. Decide on F18/F19 timing (recommended before real-client pilot, not required for staff-only fake-data staging).
+3. Direct-to-S3 upload remains **required before any real-client pilot** (F2).
+4. Formal mobile/provider re-test (G1/G2) and workshop/template evidence (G3) still outstanding.
+5. After provisioning: deploy a protected preview and run the staging checks in `staging-evidence-chain-results.md` / `staging-provider-verification-results.md`.

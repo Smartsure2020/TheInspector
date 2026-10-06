@@ -92,3 +92,10 @@ See `CURRENT-STATE.md` for the consolidated status.
 - **Open (needs decision):** F15 raw link token in `otp_challenges`; F16 client actions not checking OTP.
 - **Not approved yet (no deploy / no spend):** Vercel Pro or alternative hosting; AWS RDS/S3 spend; Twilio account/use; LiveKit account/use.
 - **Gate numbering:** repo IDs are canonical (G1 mobile verification, G2 provider decision, G3 template sign-off). Earlier discussion numbered them workshop / mobile / provider; statuses are recorded by activity, so no renumbering.
+
+### Update 2026-10-06 (latest) — F15/F16 fixed; new items needing decisions
+
+- **Approved and implemented (`d22d82d`):** F15 (hash OTP link tokens at rest, with migration/backfill) and F16 (OTP + active-link checks on client server actions).
+- **Documented exception:** `requestNewLinkAction` requires no OTP/active link — expired/revoked-link clients must be able to ask for a new link; it only writes one audit event.
+- **Needs decision (recommended before any real-client pilot):** F18 raw link tokens still stored in `appointments`/`client_upload_requests` (show-once link + regenerate design); F19 OTP resend cooldown/lockout; F20 tokens in URL paths/logs.
+- **Unchanged:** no deploy, no cloud resources, no secrets; Vercel/AWS/Twilio/LiveKit approvals still outstanding; real client data NO-GO.
