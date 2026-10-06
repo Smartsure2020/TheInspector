@@ -6,6 +6,7 @@ import { verifyPassword, createSession, revokeSession } from "./auth";
 import { sha256, randomOtp } from "./crypto";
 import { sendOtp } from "./sms";
 import { resolveToken, getClient } from "./data";
+import { isOtpVerified, otpCookieName } from "./client-access";
 
 const roleHome: Record<string, string> = {
   admin: "/admin",
@@ -97,11 +98,11 @@ export async function verifyOtpAction(token: string, formData: FormData) {
   );
 
   const jar = await cookies();
-  jar.set(`inspector.otp.${token}`, sha256(token + challenge.id), {
+  jar.set(otpCookieName(token), sha256(token + challenge.id), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: `/c/${token}`,
+    path: "/", // must reach /api/* (video routes), not only /c/<token>
     maxAge: 8 * 3600,
   });
 
@@ -109,6 +110,5 @@ export async function verifyOtpAction(token: string, formData: FormData) {
 }
 
 export async function checkOtpVerified(token: string): Promise<boolean> {
-  const jar = await cookies();
-  return !!jar.get(`inspector.otp.${token}`)?.value;
+  return isOtpVerified(token);
 }

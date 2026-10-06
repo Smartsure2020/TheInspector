@@ -24,6 +24,7 @@ type Signal =
 
 export class P2PAdapter implements SessionAdapter {
   private roomKey = "";
+  private clientToken = "";
   private role: PeerRole = "assessor";
   private events: AdapterEvents = {};
   private pc: RTCPeerConnection | null = null;
@@ -38,7 +39,12 @@ export class P2PAdapter implements SessionAdapter {
 
   get connectionState() { return this.state; }
 
-  async resolveRoom(roomKey: string) {
+  private ctQs(lead: "?" | "&") {
+    return this.clientToken ? `${lead}ct=${encodeURIComponent(this.clientToken)}` : "";
+  }
+
+  async resolveRoom(roomKey: string, clientToken?: string) {
+    this.clientToken = clientToken ?? "";
     this.roomKey = roomKey; // P2P: room key IS the channel key; nothing to create
   }
 
@@ -117,7 +123,7 @@ export class P2PAdapter implements SessionAdapter {
 
   private async post(to: string, type: string, payload: unknown) {
     try {
-      await fetch(`/api/rtc/${encodeURIComponent(this.roomKey)}`, {
+      await fetch(`/api/rtc/${encodeURIComponent(this.roomKey)}${this.ctQs("?")}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from: this.role, to, type, payload }),
@@ -140,7 +146,7 @@ export class P2PAdapter implements SessionAdapter {
   private async poll() {
     let data: { messages: { from: string; type: string; payload: unknown }[]; presence: { assessor: boolean; client: boolean; waiting: boolean } };
     try {
-      const res = await fetch(`/api/rtc/${encodeURIComponent(this.roomKey)}?peer=${this.role}`, { cache: "no-store" });
+      const res = await fetch(`/api/rtc/${encodeURIComponent(this.roomKey)}?peer=${this.role}${this.ctQs("&")}`, { cache: "no-store" });
       data = await res.json();
     } catch {
       this.events.onError?.("Signal channel unreachable");

@@ -44,6 +44,7 @@ function createSessionFor(userId) {
 const adminCookie = createSessionFor("u-lerato");
 const assessorCookie = createSessionFor("u-sipho");
 const managerCookie = createSessionFor("u-craig");
+const otherAssessorCookie = createSessionFor("u-anje"); // not assigned to j5 (used for the 403 video checks)
 console.log("Sessions created: admin (lerato), assessor (sipho), manager (craig)\n");
 
 const adminHeaders = { Cookie: adminCookie };
@@ -53,7 +54,7 @@ const managerHeaders = { Cookie: managerCookie };
 // [route, markers, description, headers]
 // markers = string[] → check response body contains all strings (case-insensitive)
 // markers = null → check response is a ZIP (PK header)
-// markers = "expect-401" → check response is HTTP 401
+// markers = "expect-401" / "expect-403" → check response is that HTTP status
 // headers = object with Cookie, or false for unauthenticated
 const CHECKS = [
   ["/", ["Sign in"], "login page renders for unauthenticated", false],
@@ -85,6 +86,13 @@ const CHECKS = [
   // Auth enforcement — these MUST return 401 without credentials
   ["/api/pack/j7", "expect-401", "pack 401 when unauthenticated", false],
   ["/api/files/fake-id", "expect-401", "file 401 when unauthenticated", false],
+  // Video/signaling routes (Phase 5C F1) — never open, whatever the provider config
+  ["/api/livekit/token?room=job-j5", "expect-401", "livekit token 401 when unauthenticated", false],
+  ["/api/daily/room?name=job-j5", "expect-401", "daily room 401 when unauthenticated", false],
+  ["/api/rtc/job-j5?peer=assessor", "expect-401", "rtc channel 401 when unauthenticated", false],
+  ["/api/rtc/job-j5?peer=assessor&ct=demo-live", "expect-401", "rtc 401 for client link without OTP", false],
+  ["/api/livekit/token?room=job-j5", "expect-403", "livekit token 403 for admin (not the assigned assessor)", adminHeaders],
+  ["/api/rtc/job-j5?peer=assessor", "expect-403", "rtc 403 for assessor not assigned to job (anje on j5)", { Cookie: otherAssessorCookie }],
 ];
 
 let pass = 0, fail = 0;
@@ -94,6 +102,13 @@ for (const [path, markers, desc, headers] of CHECKS) {
     const opts = { redirect: "manual" };
     if (headers) opts.headers = headers;
     const res = await fetch(url, opts);
+
+    // --- expect-403 check ---
+    if (markers === "expect-403") {
+      if (res.status === 403) { console.log(`PASS  ${path}  — ${desc}`); pass++; }
+      else throw new Error(`expected 403, got ${res.status}`);
+      continue;
+    }
 
     // --- expect-401 check ---
     if (markers === "expect-401") {

@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeVideoAccess, denyResponse } from "@/lib/video-access";
 
 export async function GET(req: NextRequest) {
+  const name = req.nextUrl.searchParams.get("name");
+  if (!name) {
+    return NextResponse.json({ error: "name is required" }, { status: 400 });
+  }
+
+  // Authorize FIRST, before revealing config state or using the Daily key. Identity
+  // comes from the server (assigned assessor / OTP-verified client for this job).
+  const access = await authorizeVideoAccess(req, name, { liveOnly: true });
+  if (!access.ok) return denyResponse(access);
+  const identity = access.role;
+
   const apiKey = process.env.DAILY_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
       { error: "Daily.co not configured — set DAILY_API_KEY in .env.local" },
       { status: 503 }
     );
-  }
-
-  const name = req.nextUrl.searchParams.get("name");
-  const identity = req.nextUrl.searchParams.get("identity");
-  if (!name || !identity) {
-    return NextResponse.json({ error: "name and identity are required" }, { status: 400 });
   }
 
   const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 64);

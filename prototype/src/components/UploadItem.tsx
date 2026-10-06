@@ -8,6 +8,7 @@ import { uploadEvidenceAction } from "@/lib/actions";
 import { Icon } from "@/components/ui/Icon";
 import { LiveRegion } from "@/components/ui/Overlay";
 import { clientButtonClass } from "@/components/ui/client";
+import { MAX_UPLOAD_BYTES, uploadTooLargeMessage } from "@/lib/limits";
 
 export function UploadItem({
   token, itemKey, label, why, index, done,
@@ -32,6 +33,13 @@ export function UploadItem({
   const onFile = (file: File | undefined) => {
     if (!file) return;
     setErr("");
+    // Checked here because production hides server-action error text from the browser.
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setFileName("");
+      setErr(uploadTooLargeMessage("file"));
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setFileName(file.name);
     const fd = new FormData();
     fd.set("file", file);

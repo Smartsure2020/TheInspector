@@ -18,6 +18,7 @@ import { ClientOutcome } from "@/components/ui/client";
 import { promptText } from "@/lib/prompts";
 import { ConnectionState, RoomMessage, SessionAdapter } from "@/lib/video/adapter";
 import { createAdapter } from "@/lib/video/create-adapter";
+import { MAX_UPLOAD_BYTES, uploadTooLargeMessage } from "@/lib/limits";
 import { captureHighResPhoto, tryTorch } from "@/lib/video/media";
 import { uploadEvidenceAction } from "@/lib/actions";
 
@@ -75,7 +76,7 @@ export function ClientRoom({ token, jobId, assessorName }: { token: string; jobI
       const adapter = await createAdapter();
       if (cancelled) { void adapter.leaveRoom(); return; }
       adapterRef.current = adapter;
-      await adapter.resolveRoom(`job-${jobId}`);
+      await adapter.resolveRoom(`job-${jobId}`, token);
       await adapter.joinRoom("client", {
         onLocalStream: (s) => { if (localRef.current) localRef.current.srcObject = s; },
         onRemoteStream: (s) => { setHasRemote(!!s); if (remoteRef.current) remoteRef.current.srcObject = s; },
@@ -121,6 +122,10 @@ export function ClientRoom({ token, jobId, assessorName }: { token: string; jobI
 
   const usePhoto = async () => {
     if (!photoPreview || !photoReq) return;
+    if (photoPreview.blob.size > MAX_UPLOAD_BYTES) {
+      setPhotoError(uploadTooLargeMessage("photo"));
+      return;
+    }
     setPhotoBusy(true);
     setPhotoError("");
     try {

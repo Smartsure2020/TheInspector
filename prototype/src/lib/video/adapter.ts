@@ -46,7 +46,7 @@ export interface AdapterEvents {
 
 export interface SessionAdapter {
   /** Resolve/prepare the room for a job. P2P: no-op (room key = job id). Providers: create/fetch room. */
-  resolveRoom(roomKey: string): Promise<void>;
+  resolveRoom(roomKey: string, clientToken?: string): Promise<void>;
   /** Join with local media. */
   joinRoom(role: PeerRole, events: AdapterEvents): Promise<void>;
   leaveRoom(): Promise<void>;

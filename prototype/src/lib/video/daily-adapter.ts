@@ -38,9 +38,9 @@ export class DailyAdapter implements SessionAdapter {
     this.events.onConnectionState?.(s);
   }
 
-  async resolveRoom(roomKey: string): Promise<void> {
+  async resolveRoom(roomKey: string, clientToken?: string): Promise<void> {
     const res = await fetch(
-      `/api/daily/room?name=${encodeURIComponent(roomKey)}&identity=${encodeURIComponent(this.role)}`
+      `/api/daily/room?name=${encodeURIComponent(roomKey)}${clientToken ? `&ct=${encodeURIComponent(clientToken)}` : ""}`
     );
     if (!res.ok) {
       const text = await res.text();

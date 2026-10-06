@@ -6,6 +6,7 @@ import { Actor, changeStatus, durationForClaimType, getJob, getUser, logEvent, n
 import { JobStatus, JobType } from "./types";
 import { requireRole, requireSession } from "./auth";
 import { sha256 } from "./crypto";
+import { uploadTooLargeMessage } from "./limits";
 
 const CLIENT_ACTOR: Actor = { id: "client_link", name: "client_link", role: "client" };
 
@@ -400,7 +401,7 @@ export async function uploadEvidenceAction(
   const file = formData.get("file") as File | null;
   if (!file || file.size === 0) throw new Error("No file received.");
   const { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES, saveUpload } = await import("./storage");
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File too large (max 15 MB).");
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error(uploadTooLargeMessage());
   if (!ALLOWED_UPLOAD_MIMES.includes(file.type)) throw new Error("Please upload a photo or PDF.");
 
   const id = uuid();

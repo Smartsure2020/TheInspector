@@ -34,7 +34,7 @@ export function WaitingLive({
     const poll = async () => {
       if (stop) return;
       try {
-        const res = await fetch(`/api/rtc/job-${jobId}?peer=waiting`, { cache: "no-store" });
+        const res = await fetch(`/api/rtc/job-${jobId}?peer=waiting&ct=${encodeURIComponent(token)}`, { cache: "no-store" });
         const data = await res.json();
         misses = 0;
         setReachable(true);

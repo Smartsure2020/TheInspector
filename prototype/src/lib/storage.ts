@@ -25,19 +25,36 @@ const extFromMime: Record<string, string> = {
 };
 
 export const ALLOWED_UPLOAD_MIMES = Object.keys(extFromMime);
-export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+// Staging-safe limit shared with client components (see limits.ts for why it is not 15 MB).
+export { MAX_UPLOAD_BYTES } from "./limits";
 
 // ---- lazy S3 client (only loaded when STORAGE_PROVIDER=s3) ----
 
+// Staging/prod config uses S3_-prefixed variables (Vercel reserves the AWS_* names):
+//   S3_REGION (default af-south-1), S3_BUCKET (required),
+//   S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY (least-privilege key; set both or neither).
+// With neither key set the SDK's default credential chain is used (AWS_* env,
+// shared profile, IAM/instance role) — for local runs and AWS-hosted deployments.
 let _s3: import("@aws-sdk/client-s3").S3Client | undefined;
 async function s3client() {
   if (_s3) return _s3;
   const { S3Client } = await import("@aws-sdk/client-s3");
-  _s3 = new S3Client({ region: process.env.AWS_REGION ?? "af-south-1" });
+  const accessKeyId = process.env.S3_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
+  if (!!accessKeyId !== !!secretAccessKey)
+    throw new Error("S3 credentials misconfigured: set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or neither.");
+  _s3 = new S3Client({
+    region: process.env.S3_REGION ?? process.env.AWS_REGION ?? "af-south-1",
+    ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
+  });
   return _s3;
 }
 
-const bucket = () => process.env.S3_BUCKET ?? "inspector-uploads";
+const bucket = () => {
+  const b = process.env.S3_BUCKET;
+  if (!b) throw new Error("STORAGE_PROVIDER=s3 requires S3_BUCKET to be set.");
+  return b;
+};
 
 // ---- public API (async for both providers) ----
 

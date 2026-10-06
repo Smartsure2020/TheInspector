@@ -39,7 +39,7 @@ export class LiveKitAdapter implements SessionAdapter {
     this.events.onConnectionState?.(s);
   }
 
-  async resolveRoom(roomKey: string): Promise<void> {
+  async resolveRoom(roomKey: string, clientToken?: string): Promise<void> {
     const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
     if (!wsUrl) {
       throw new Error(
@@ -49,7 +49,7 @@ export class LiveKitAdapter implements SessionAdapter {
     }
     this.wssUrl = wsUrl;
     const res = await fetch(
-      `/api/livekit/token?room=${encodeURIComponent(roomKey)}&identity=${encodeURIComponent(this.role)}`
+      `/api/livekit/token?room=${encodeURIComponent(roomKey)}${clientToken ? `&ct=${encodeURIComponent(clientToken)}` : ""}`
     );
     if (!res.ok) {
       const text = await res.text();
@@ -104,15 +104,8 @@ export class LiveKitAdapter implements SessionAdapter {
       } catch { /* ignore non-JSON data */ }
     });
 
-    if (!this.token) {
-      const res = await fetch(
-        `/api/livekit/token?room=job-${role}&identity=${encodeURIComponent(role)}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        this.token = data.token;
-      }
-    }
+    // The token must come from resolveRoom (server-authorized). No unauthenticated fallback.
+    if (!this.token) throw new Error("LiveKit token missing: resolveRoom must succeed before joinRoom");
 
     await room.connect(this.wssUrl, this.token);
 

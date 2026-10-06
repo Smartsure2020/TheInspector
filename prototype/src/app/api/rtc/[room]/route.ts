@@ -3,6 +3,7 @@
 // PROTOTYPE ONLY: a managed provider (or a durable channel) replaces this at
 // provider selection; the adapter interface hides it from the room components.
 import { NextRequest } from "next/server";
+import { authorizeVideoAccess, denyResponse, type VideoPeer } from "@/lib/video-access";
 
 interface Envelope { from: string; to: string; type: string; payload?: unknown; at: number }
 interface Room {
@@ -36,7 +37,10 @@ const presence = (r: Room) => {
 // GET /api/rtc/{room}?peer=assessor — heartbeat + drain this peer's queue.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ room: string }> }) {
   const { room: key } = await params;
-  const peer = req.nextUrl.searchParams.get("peer") ?? "unknown";
+  const access = await authorizeVideoAccess(req, key);
+  if (!access.ok) return denyResponse(access);
+  const peer = req.nextUrl.searchParams.get("peer") ?? "";
+  if (!access.peers.includes(peer as VideoPeer)) return Response.json({ error: "Forbidden" }, { status: 403 });
   const r = room(key);
   r.lastSeen.set(peer, Date.now());
   const q = r.queues.get(peer) ?? [];
@@ -47,7 +51,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ room
 // POST /api/rtc/{room}  body: {from, to, type, payload}
 export async function POST(req: NextRequest, { params }: { params: Promise<{ room: string }> }) {
   const { room: key } = await params;
-  const body = (await req.json()) as Envelope;
+  const access = await authorizeVideoAccess(req, key);
+  if (!access.ok) return denyResponse(access);
+  const body = (await req.json().catch(() => null)) as Envelope | null;
+  const PEERS: VideoPeer[] = ["assessor", "client", "waiting"];
+  if (!body || !access.peers.includes(body.from as VideoPeer) || !PEERS.includes(body.to as VideoPeer))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   const r = room(key);
   r.lastSeen.set(body.from, Date.now());
   const q = r.queues.get(body.to) ?? [];

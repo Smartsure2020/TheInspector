@@ -116,6 +116,41 @@ class SqliteRunner implements QueryRunner {
 
 // ---- Postgres runner (pg Pool, async-native) ----
 
+/**
+ * Explicit pool + TLS settings (staging/serverless safe).
+ *  PG_POOL_MAX            default 3 on Vercel, 10 elsewhere (each serverless instance has its own pool)
+ *  PG_SSL_MODE            verify (default for non-local hosts) | no-verify | disable (default for localhost)
+ *  PG_SSL_CA              PEM text of the CA to trust (e.g. the AWS RDS regional bundle for af-south-1);
+ *                         escaped "\n" sequences are accepted for single-line env vars
+ * sslmode/ssl* parameters in DATABASE_URL are stripped so the settings above are the only source
+ * of truth (pg lets the URL override explicit options, and "sslmode=require" semantics changed).
+ */
+function pgPoolConfig(): import("pg").PoolConfig {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) throw new Error("DB_PROVIDER=postgres requires DATABASE_URL.");
+
+  let connectionString = raw;
+  let host = "";
+  try {
+    const u = new URL(raw);
+    host = u.hostname;
+    for (const k of ["sslmode", "ssl", "sslcert", "sslkey", "sslrootcert", "uselibpqcompat"]) u.searchParams.delete(k);
+    connectionString = u.toString();
+  } catch { /* unparseable URL: pass through unchanged */ }
+
+  const isLocal = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
+  const mode = (process.env.PG_SSL_MODE ?? (isLocal ? "disable" : "verify")).toLowerCase();
+  const ca = process.env.PG_SSL_CA?.replace(/\\n/g, "\n");
+
+  let ssl: import("pg").PoolConfig["ssl"];
+  if (mode === "disable") ssl = false;
+  else if (mode === "no-verify") ssl = { rejectUnauthorized: false };
+  else ssl = ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: true };
+
+  const max = Number(process.env.PG_POOL_MAX) || (process.env.VERCEL ? 3 : 10);
+  return { connectionString, ssl, max, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 10_000 };
+}
+
 class PgRunner implements QueryRunner {
   private pool: import("pg").Pool;
   private ready = false;
@@ -130,7 +165,7 @@ class PgRunner implements QueryRunner {
     pg.types.setTypeParser(1114, String);      // TIMESTAMP → raw string
     pg.types.setTypeParser(1184, (v: string) => // TIMESTAMPTZ → local string
       v.replace("T", " ").slice(0, 19));
-    this.pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    this.pool = new pg.Pool(pgPoolConfig());
   }
 
   private async init() {
