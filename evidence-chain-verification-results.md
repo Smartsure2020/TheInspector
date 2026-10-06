@@ -95,7 +95,7 @@ This makes event_log append-only, protecting the audit trail.
 To run a live capture test:
 
 1. Start dev server: `npm run dev`
-2. Login as assessor (sipho / demo123)
+2. Login as assessor (sipho@acorn.demo; the demo password is `DEV_PASSWORD` in `prototype/src/lib/seed.ts`)
 3. Navigate to any job in "in_progress" state (e.g. /jobs/j5)
 4. Open the live room (/jobs/j5/room) with `?media=fake&loopback=1` for single-browser testing
 5. Capture a frame using the capture button
@@ -104,3 +104,18 @@ To run a live capture test:
 8. Download evidence pack from /jobs/j5/report/final
 9. Extract ZIP, open index.csv, confirm sha256 column is populated for the captured item
 10. Check database: `SELECT * FROM access_log WHERE resource_type='evidence_pack'`
+
+## Live run — 2026-10-06 (SQLite + local disk, fake media, production build)
+
+Job j5, assessor `u-sipho`, `/jobs/j5/room?media=fake&loopback=1`, checklist item
+"Confirm identity of person on camera…", one frame capture.
+
+| Link in the chain | Observed |
+|---|---|
+| `evidence_items.sha256` populated | `aac8b8be…15a2a0` (kind `frame_capture`) |
+| Hash matches stored file | SHA-256 recomputed from `db/uploads/<id>.jpg` equals the stored value |
+| Pack `index.csv` carries hash | Same hash in the `sha256` column of the pack downloaded via `/api/pack/j5` |
+| `access_log` records the download | `evidence_pack` / `j5` / `download` / `u-sipho` / `::1` |
+
+**Result: PASS** for the assessor-capture path. **Not yet covered:** client-upload
+path (`uploadEvidenceAction`), S3 storage, Postgres. Re-run these on staging.

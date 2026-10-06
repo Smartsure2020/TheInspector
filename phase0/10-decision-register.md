@@ -61,3 +61,19 @@ agreements, final consent wording, data-residency stance, hosting choice. These 
 parked during Phase 0/1 and are now approved for implementation as part of production
 hardening (Phase H). Templates signed off as-is at the 2026-07-07 workshop (G3 passed).
 All in-house staff participate in the pilot (D-08). LiveKit is the selected provider (D-11).
+
+## Evidence status of recorded decisions (added 2026-10-06 — stabilisation pass)
+
+The decisions above are recorded, but several rest on activities whose supporting
+artefacts are **not in this repository**. Until the artefact is filed, the gate is
+treated as **not formally passed**. Fields marked `TO COMPLETE` need the person who
+ran or approved the activity — they have not been filled in on their behalf.
+
+| Item | What the register claims | Evidence expected | Evidence in repo | Approved by | Remains conditional |
+|---|---|---|---|---|---|
+| G3 — template sign-off (workshop 2026-07-07) | Templates signed off as-is | Completed `phase1/workshop/01-review-workbook.md`, attendee list, per-template verdicts | None (workbook blank) | TO COMPLETE | Treat templates as v0.1-1F draft until filed |
+| G1 — mobile verification (2026-07-13) | Tested on real devices | SP1–SP10 results, device/OS/browser matrix | Only 3 older Daily.co spike screenshots (`phase1/spike-evidence/`) | TO COMPLETE | Do not claim "clients can join from a phone" |
+| G2 / D-11 — provider selection (LiveKit) | LiveKit selected | Filled `provider-comparison-template.md` / `provider-mobile-test-pack.md`; cost + POPIA residency notes | None (templates blank) | TO COMPLETE | LiveKit is the working direction, not a ratified decision; P2P remains the staging default |
+| Phase H green-light (2026-07-13) | Production hardening approved | Dated approval note | Register note only | TO COMPLETE | — |
+
+See `CURRENT-STATE.md` for the consolidated status.

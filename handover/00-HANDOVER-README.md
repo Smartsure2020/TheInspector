@@ -1,3 +1,5 @@
+> **2026-10-06 — superseded in part.** This pack was written on 2026-07-06 against the role-picker prototype. Auth, RBAC, OTP, evidence hashing and access logging now exist. Read `../CURRENT-STATE.md` first; where it disagrees with this pack, it wins.
+
 # Handover pack — The Inspector prototype
 
 **Date:** 2026-07-06 · **Prepared at the end of the Phase 1 build (post-1F + QA pass)**
