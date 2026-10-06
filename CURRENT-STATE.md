@@ -31,7 +31,7 @@ Stable checkpoint pushed (`main` @ `9a648f9`, tag `inspector-current-stable`). N
 created, no spend, no secrets committed. AWS/Twilio/LiveKit access is not available from the
 build environment, so provisioning is a manual step (`manual-cloud-setup-checklist.md`).
 The Postgres path was proven locally for the first time (`staging-evidence-chain-results.md`).
-Findings F1–F17 are in `phase5c-staging-deployment-report.md`. **Approved code fixes landed in `cff877d`:** video/signaling routes now authorize (F1), the OTP-cookie bypass is closed (F14), S3 uses `S3_*` vars (F3), Postgres pool/SSL are explicit (F5), and uploads have a staging-safe 3.5 MB limit (F2 — **mitigation only; direct-to-S3 upload is required before any real-client pilot**). **`d22d82d` then fixed F15** (OTP link tokens hashed at rest, with an idempotent SQLite/Postgres migration) **and F16** (all client server actions now require an active link and OTP for that exact link; verified in a real browser). Residual: raw link tokens remain in `appointments`/`client_upload_requests` (F18, needs a design decision), and OTP issuance has no cooldown/lockout (F19).
+Findings F1–F17 are in `phase5c-staging-deployment-report.md`. **Approved code fixes landed in `cff877d`:** video/signaling routes now authorize (F1), the OTP-cookie bypass is closed (F14), S3 uses `S3_*` vars (F3), Postgres pool/SSL are explicit (F5), and uploads have a staging-safe 3.5 MB limit (F2 — **mitigation only; direct-to-S3 upload is required before any real-client pilot**). **`d22d82d` then fixed F15** (OTP link tokens hashed at rest, with an idempotent SQLite/Postgres migration) **and F16** (all client server actions now require an active link and OTP for that exact link; verified in a real browser). **`6007ec2` then fixed F19** (OTP resend cooldown 60 s, max 5 sends/hour per link, audited, with clear client copy; OTP codes now use a CSPRNG). Residual: raw link tokens remain in `appointments`/`client_upload_requests` (F18 — pre-real-client-pilot design decision: likely show-once link + regenerate/revoke), and link-preview bots can trigger the first SMS (F22).
 Staff-only staging pilot: **GO only if staging checks pass** (not yet run). Real client data: **NO-GO**.
 
 ## Verified on 2026-10-06 (this stabilisation pass)
@@ -40,7 +40,7 @@ Staff-only staging pilot: **GO only if staging checks pass** (not yet run). Real
 |---|---|
 | `npx tsc --noEmit` | Clean (after clearing a corrupt, gitignored `.next` cache) |
 | `npm run build` | Clean, all routes compile |
-| `npm run qa:smoke` (production mode, freshly reset fake-data book) | **27/27 pass** (stabilisation pass); **33/33** after the Phase 5C fixes (`cff877d`, and again after `d22d82d`) |
+| `npm run qa:smoke` (production mode, freshly reset fake-data book) | **27/27 pass** (stabilisation pass); **33/33** after the Phase 5C fixes (`cff877d`; re-confirmed after `d22d82d` and `6007ec2`) |
 | Evidence chain, end to end (fake media, SQLite + local disk) | **Pass** — see below |
 
 **Evidence chain run (job j5, assessor session, `?media=fake&loopback=1`):**
@@ -77,7 +77,7 @@ Not yet exercised: client-upload path, S3 storage, Postgres.
   real infrastructure; they are built and build-verified only.
 - **Signaling is in-memory, single process** (blocker B4). A restart drops live rooms.
 - **Uploads are capped at 3.5 MB** (Vercel body limit); high-res/15 MB photos need direct-to-S3 upload — required before any real-client pilot.
-- Open security items before any real-client pilot: F18 (raw link tokens still stored in `appointments`/`client_upload_requests`), F19 (no OTP resend cooldown/lockout), F20 (tokens appear in URL paths/logs). F15 and F16 are fixed (`d22d82d`).
+- Open before any real-client pilot: **F18** (raw link tokens still stored in `appointments`/`client_upload_requests` — design decision, likely show-once link + regenerate/revoke; not required for fake-data staff-only staging), **F22** (first SMS sent on page render). **F20** is a documented operational risk: URL-path tokens are sensitive — treat staging logs, screenshots and browser history as sensitive. F15/F16 fixed (`d22d82d`), F19/F21 fixed (`6007ec2`).
 - **No MFA** (the login page and user admin say so explicitly). No password policy,
   no forgot-password flow.
 - **SQLite has no DB-level event-log immutability** (Postgres does, unproven live).

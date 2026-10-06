@@ -204,8 +204,8 @@ Test-process notes (for honesty): two of my own test attempts were flawed and we
 
 | # | Finding | Severity | Status |
 |---|---|---|---|
-| F18 | `appointments.link_token` and `client_upload_requests.link_token` still store the **raw** token in plaintext (a comment in `schema.ts` says "hashed at hardening"). Staff need to copy/send the link, so removing it is a design change (show-once link + regenerate), not a column drop. Lookups already use the hash. | Medium | **Open — needs a decision** before any real-client pilot |
-| F19 | OTP issuance has no cooldown or per-link/IP rate limit: after a challenge's 3 attempts are used, the next `/verify` visit issues a new code. A holder of a link can trigger repeated SMS to the client (cost/spam) and make repeated 3-guess attempts. 6-digit space makes brute force slow but not impossible over time. | Medium | **Open** — recommend per-link resend cooldown + lockout before any real-client pilot |
+| F18 | **[DESIGN DECISION — see §11]** `appointments.link_token` and `client_upload_requests.link_token` still store the **raw** token in plaintext (a comment in `schema.ts` says "hashed at hardening"). Staff need to copy/send the link, so removing it is a design change (show-once link + regenerate), not a column drop. Lookups already use the hash. | Medium | **Open — needs a decision** before any real-client pilot |
+| F19 | **[FIXED in `6007ec2` — see §11]** OTP issuance had no cooldown or per-link/IP rate limit: after a challenge's 3 attempts are used, the next `/verify` visit issues a new code. A holder of a link can trigger repeated SMS to the client (cost/spam) and make repeated 3-guess attempts. 6-digit space makes brute force slow but not impossible over time. | Medium | **Open** — recommend per-link resend cooldown + lockout before any real-client pilot |
 | F20 | Link tokens still appear in URL paths (`/c/<token>`) by design; reverse-proxy/Vercel access logs will contain them. Treat logs as sensitive; consider short-lived tokens or POST-based exchange later. | Low–Medium | Noted |
 
 ### Remaining blockers before a staging deploy
@@ -215,3 +215,73 @@ Test-process notes (for honesty): two of my own test attempts were flawed and we
 3. Direct-to-S3 upload remains **required before any real-client pilot** (F2).
 4. Formal mobile/provider re-test (G1/G2) and workshop/template evidence (G3) still outstanding.
 5. After provisioning: deploy a protected preview and run the staging checks in `staging-evidence-chain-results.md` / `staging-provider-verification-results.md`.
+
+---
+
+## 11. Update — F19 fixed (commit `6007ec2`, 2026-10-06); F18/F20 recorded
+
+Still **no deploy, no cloud resources, no secrets**. Fake/internal data only.
+
+### F19 — OTP send limits
+
+| Control | Value (default → env override) |
+|---|---|
+| Cooldown between sends, per link | 60 s → `OTP_RESEND_COOLDOWN_SECONDS` |
+| Max sends per rolling hour, per link | 5 → `OTP_MAX_SENDS_PER_HOUR` |
+| Verification attempts per code | 3 (unchanged) |
+| Worst case for someone holding a link | 5 SMS and 15 guesses per hour (of 1,000,000 codes) |
+
+How it behaves:
+- `/verify` sends the **first** code only. Refreshing never re-sends while a usable code exists. Every send counts (one `otp_challenges` row = one SMS).
+- Explicit **"Send me a new code"** button with a live countdown. The server is authoritative: forged requests replayed directly at the server action get the same `cooldown` / `limit` answer.
+- Client-facing copy for cooldown, hourly limit ("new codes are paused for your security… try again in about N minutes, or contact your claims coordinator"), no attempts left, and send failure.
+- A failed SMS send no longer crashes the page; it counts toward the limits and shows a friendly message.
+- **Audit events** (never contain codes or phone numbers): `otp_sent`, `otp_rate_limited {reason, retry_after_s}`, `otp_attempts_exhausted`, `otp_send_failed`. Rate-limit events are deduplicated to once per job+reason per 10 minutes because the event log is append-only and must not be floodable.
+- Adjacent one-line fix: `randomOtp()` used `Math.random()` (predictable); it now uses `crypto.randomInt` (F21, fixed).
+
+### Verification
+
+| Check | Result |
+|---|---|
+| Secret scan | Clean |
+| `npx tsc --noEmit` / `npm run build` | Clean / Clean |
+| `npm run qa:smoke` (production, default env) | **33/33** |
+| Authorization matrix (re-run, OTP-related) | **37/37** |
+| First visit | 1 SMS, `otp_sent` audited, button shows live countdown |
+| Page refreshes | 0 extra SMS |
+| Forged server-action replay inside cooldown | `{"state":"cooldown","retryAfterSeconds":4}`, 1 audit event |
+| Hourly cap (3 with test limits): 5 forged replays | all `limit`, still 3 SMS rows, **1** audit event (dedupe works) |
+| 3 wrong codes | friendly counting messages; `otp_attempts_exhausted` audited once |
+| Limited page after exhausting the code | "paused for your security" copy, **no resend button**, no new SMS on reload |
+| Normal client on another link | 1 SMS → verified → client page (unaffected) |
+| Defaults | confirmed 60 s on a default-env server |
+| Audit rows containing 6-digit codes / phone numbers | 0 |
+| Not exercised | the Twilio failure path (`otp_send_failed`) — needs a real Twilio account; code path is small but untested live |
+
+Test-process note: my first "bypass the countdown" attempt did nothing because React ignores clicks on a button whose `disabled` prop is true; I replaced it with a direct replay of the real server-action request, which is the stronger test.
+
+### New findings from this work
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| F21 | OTP codes were generated with `Math.random()`. | Medium | **Fixed** (`6007ec2`) |
+| F22 | Link-preview/security scanners that follow `/c/<token>` → `/verify` can trigger the first SMS (page render sends it). The new limits bound this to 1 send per cooldown and 5 per hour per link, but it can still spend an SMS and set a cooldown before the real client arrives. | Low–Medium | Open — option: send the first code only on an explicit user action ("Text me a code"). Decide before real-client pilot. |
+| F23 | Rate-limit checks are read-then-insert, so two simultaneous requests could both pass and send two SMS (still bounded: the next request sees both rows). | Low | Noted |
+| F24 | `data.ts` parses stored UTC timestamps without a `Z` (e.g. link expiry), so on a server whose timezone is not UTC (this laptop is UTC+2) link expiry/early-window checks are skewed by the offset. Vercel runs in UTC so staging is unaffected; the new OTP code uses explicit UTC. | Low (staging) | Open — fix before relying on local-time hosts |
+
+### F18 — recorded as a pre-real-client-pilot design decision (not started)
+
+- **Current model:** raw link tokens are stored in `appointments` and `client_upload_requests` so staff can copy/paste the link into an SMS. Lookups already use the hash.
+- **Likely future model:** **show-once link + regenerate/revoke** — the link is displayed (or sent) once at creation; only the hash is stored; staff regenerate (which revokes the old link) instead of re-reading it.
+- **Not required for fake-data, staff-only staging.** Needs a decision, a UX change on the staff job page, and a migration before any real-client pilot.
+
+### F20 — operational risk (documented, not a staging blocker)
+
+- Link tokens appear in URL paths (`/c/<token>`). Treat as sensitive: staging server/CDN logs, screenshots, screen recordings, browser history, chat messages and error reports can all contain a live link.
+- For staging: use fake data only, do not paste links into shared channels, and expire/regenerate demo links after test sessions. Revisit with F18 (short-lived or exchange-based tokens).
+
+### Remaining blockers
+
+1. **Approvals/accounts (yours):** Vercel plan or alternative host; AWS af-south-1 (RDS, S3, IAM key, regional RDS CA); Twilio; LiveKit Cloud — `manual-cloud-setup-checklist.md`. Nothing was created. The OTP limits above bound Twilio spend and abuse once the account exists.
+2. **Before any real-client pilot:** F18 design decision; F22 decision; direct-to-S3 upload (F2); formal mobile/provider re-test (G1/G2) and workshop/template evidence (G3).
+3. Then: deploy protected preview and run the staging checks.

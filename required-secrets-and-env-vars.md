@@ -33,6 +33,8 @@ Set these **only** in Vercel project env vars (Environment: Preview/Staging; mar
 | `PG_POOL_MAX` | 3 on Vercel, 10 elsewhere | Max connections **per serverless instance** (keep small; RDS has a connection ceiling) |
 | `PG_SSL_MODE` | `verify` (non-localhost) / `disable` (localhost) | `verify` = TLS + certificate check (needs `PG_SSL_CA` for RDS); `no-verify` = TLS without checking the server certificate (weaker; staging stop-gap only); `disable` = plain |
 | `DAILY_API_KEY` | — | Only for Daily comparison runs (also behind auth now) |
+| `OTP_RESEND_COOLDOWN_SECONDS` | 60 | Minimum seconds between OTP SMS sends for one client link (F19) |
+| `OTP_MAX_SENDS_PER_HOUR` | 5 | Maximum OTP SMS sends per client link in any rolling 60 minutes (F19); also bounds Twilio spend/abuse |
 
 ## Notes
 

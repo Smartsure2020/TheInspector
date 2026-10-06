@@ -99,3 +99,11 @@ See `CURRENT-STATE.md` for the consolidated status.
 - **Documented exception:** `requestNewLinkAction` requires no OTP/active link — expired/revoked-link clients must be able to ask for a new link; it only writes one audit event.
 - **Needs decision (recommended before any real-client pilot):** F18 raw link tokens still stored in `appointments`/`client_upload_requests` (show-once link + regenerate design); F19 OTP resend cooldown/lockout; F20 tokens in URL paths/logs.
 - **Unchanged:** no deploy, no cloud resources, no secrets; Vercel/AWS/Twilio/LiveKit approvals still outstanding; real client data NO-GO.
+
+### Update 2026-10-06 (latest) — F19 fixed; F18/F20 recorded
+
+- **Implemented (`6007ec2`):** F19 OTP resend cooldown (60 s) and hourly cap (5 per link), existing 3-attempt limit kept, audited, client-facing copy; plus a CSPRNG for OTP codes (F21).
+- **F18 — pre-real-client-pilot DESIGN DECISION (not started):** current model stores raw, staff-copyable links; future model should likely be **show-once link + regenerate/revoke**. Not required for fake-data, staff-only staging.
+- **F20 — documented operational risk:** URL-path tokens are sensitive; staging logs, screenshots and browser history must be treated as sensitive. Not a blocker for fake-data staff-only staging.
+- **New for decision before real-client pilot:** F22 (first SMS sent on page render; consider an explicit "text me a code" action); F24 (UTC timestamp parsing on non-UTC hosts).
+- **Unchanged:** nothing deployed; no cloud resources; no secrets; Vercel/AWS/Twilio/LiveKit approvals outstanding; real client data NO-GO.
