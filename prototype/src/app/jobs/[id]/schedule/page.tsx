@@ -9,6 +9,7 @@ import { formatDateTime, formatDuration, isLockedStatus } from "@/lib/format";
 import { scheduleAction } from "@/lib/actions";
 import { CopyButton } from "@/components/CopyButton";
 import { requireSession } from "@/lib/auth";
+import { wallParts } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +47,8 @@ export default async function Schedule({ params, searchParams }: {
 
   const scheduleWithId = scheduleAction.bind(null, id);
 
-  const soon = new Date(Date.now() + 30 * 60 * 1000);
-  const defDate = `${soon.getFullYear()}-${String(soon.getMonth() + 1).padStart(2, "0")}-${String(soon.getDate()).padStart(2, "0")}`;
-  const defTime = `${String(soon.getHours()).padStart(2, "0")}:${String(soon.getMinutes()).padStart(2, "0")}`;
+  // Defaults are business-time (SAST) wall-clock values, whatever timezone the server runs in.
+  const { date: defDate, time: defTime } = wallParts(Date.now() + 30 * 60 * 1000);
 
   const heading =
     job.status === "No-show" ? `Rebook — attempt ${job.attempt_count + 1}`

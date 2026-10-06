@@ -5,6 +5,7 @@ import "server-only";
 import { query, nowIso, uuid } from "./db";
 import { sha256 } from "./crypto";
 import { ClaimType, JobStatus, JobType, TemplateSection } from "./types";
+import { parseWallStamp } from "./time";
 
 // ---------- row shapes ----------
 export interface JobRow {
@@ -194,8 +195,8 @@ export async function resolveToken(token: string): Promise<TokenInfo> {
     if (appt.link_revoked_at || appt.status === "rescheduled" || appt.status === "cancelled") return { ...info, state: "revoked" };
     if (job?.status === "Cancelled") return { ...info, state: "revoked" };
     const expires = (appt as unknown as { link_expires_at: string | null }).link_expires_at;
-    if (expires && Date.now() > new Date(expires.replace(" ", "T")).getTime()) return { ...info, state: "expired" };
-    if (Date.now() < new Date(appt.scheduled_start.replace(" ", "T")).getTime() - EARLY_WINDOW_MS) return { ...info, state: "too_early" };
+    if (expires && Date.now() > parseWallStamp(expires)) return { ...info, state: "expired" };
+    if (Date.now() < parseWallStamp(appt.scheduled_start) - EARLY_WINDOW_MS) return { ...info, state: "too_early" };
     return info;
   }
   const upr = await query.get<{ job_id: string; revoked_at: string | null; expires_at: string | null }>(
@@ -204,7 +205,7 @@ export async function resolveToken(token: string): Promise<TokenInfo> {
     const job = await getJob(upr.job_id);
     const info: TokenInfo = { state: "valid", purpose: "upload", job };
     if (upr.revoked_at) return { ...info, state: "revoked" };
-    if (upr.expires_at && Date.now() > new Date(upr.expires_at.replace(" ", "T")).getTime()) return { ...info, state: "expired" };
+    if (upr.expires_at && Date.now() > parseWallStamp(upr.expires_at)) return { ...info, state: "expired" };
     return info;
   }
   return { state: "invalid", purpose: "join" };

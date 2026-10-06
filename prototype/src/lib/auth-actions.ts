@@ -7,6 +7,7 @@ import { sha256, randomOtp } from "./crypto";
 import { sendOtp } from "./sms";
 import { resolveToken, getClient, logEvent, type Actor } from "./data";
 import { isOtpVerified, otpCookieName, otpCookieValue, hashLinkToken } from "./client-access";
+import { parseUtcStamp, utcStampFromMs } from "./time";
 
 const roleHome: Record<string, string> = {
   admin: "/admin",
@@ -59,8 +60,8 @@ const RATE_LIMIT_EVENT_DEDUPE_MS = 10 * 60_000;
 const CLIENT_ACTOR: Actor = { id: "client_link", name: "client_link", role: "client" };
 
 // DB timestamps are UTC strings "YYYY-MM-DD HH:MM:SS"
-const utcMs = (s: string) => new Date(s.replace(" ", "T") + "Z").getTime();
-const fmtUtc = (ms: number) => new Date(ms).toISOString().replace("T", " ").slice(0, 19);
+const utcMs = parseUtcStamp;
+const fmtUtc = utcStampFromMs;
 
 export type OtpStatus =
   | { state: "sent"; retryAfterSeconds: number }       // a usable code exists; seconds until a new one may be requested

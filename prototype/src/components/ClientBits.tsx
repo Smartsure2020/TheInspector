@@ -6,6 +6,7 @@ import {
   cannotAttendAction, clientPingAction, consentAction, consentDeclineAction, requestNewLinkAction,
 } from "@/lib/actions";
 import { Icon } from "@/components/ui/Icon";
+import { parseWallStamp } from "@/lib/time";
 import { ClientAction, ClientCard } from "@/components/ui/client";
 
 export function ClientPing({ token, kind }: { token: string; kind: "link_opened" | "client_waiting" }) {
@@ -81,7 +82,7 @@ export function Countdown({ target }: { target: string }) {
   const [txt, setTxt] = useState("");
   useEffect(() => {
     const tick = () => {
-      const ms = new Date(target.replace(" ", "T")).getTime() - Date.now();
+      const ms = parseWallStamp(target) - Date.now();
       if (ms <= 0) { setTxt("It's time — please refresh this page."); return; }
       const h = Math.floor(ms / 3600000);
       const m = Math.ceil((ms % 3600000) / 60000);

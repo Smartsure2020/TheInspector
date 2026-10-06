@@ -8,6 +8,7 @@ import { requireRole, requireSession } from "./auth";
 import { sha256 } from "./crypto";
 import { uploadTooLargeMessage } from "./limits";
 import { checkClientAccess } from "./client-access";
+import { parseWallStamp, wallStampFromMs } from "./time";
 
 const CLIENT_ACTOR: Actor = { id: "client_link", name: "client_link", role: "client" };
 
@@ -81,9 +82,10 @@ export async function scheduleAction(jobId: string, formData: FormData) {
     await query.run("UPDATE appointments SET status='rescheduled', link_revoked_at=? WHERE id=?", now, prev.id);
 
   const attempt = job.attempt_count + 1;
-  const exp = new Date(new Date(when.replace(" ", "T")).getTime() + 24 * 60 * 60 * 1000);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const expires = `${exp.getFullYear()}-${p(exp.getMonth() + 1)}-${p(exp.getDate())} ${p(exp.getHours())}:${p(exp.getMinutes())}`;
+  // scheduled_start is a wall-clock value (business time); the link lives for 24 h after it.
+  const startMs = parseWallStamp(when);
+  if (Number.isNaN(startMs)) throw new Error("Please enter a valid date and time.");
+  const expires = wallStampFromMs(startMs + 24 * 60 * 60 * 1000);
   const tokenHash = sha256(token);
   await query.run(
     `INSERT INTO appointments (id,job_id,attempt_number,scheduled_start,duration_minutes,status,link_token,link_token_hash,link_expires_at,created_at)

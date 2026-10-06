@@ -5,10 +5,15 @@
 // stay exactly as the status machine in `data.ts` defines them. Everything here
 // maps a stored value to something a human can read.
 //
-// Parsing note: we parse with `.replace(" ", "T")` and NO timezone suffix —
-// identical to `data.ts` (`resolveToken`) and `ClientBits` (`Countdown`), so
-// display and the existing validity/countdown logic always agree. No new
-// timezone assumption is introduced here.
+// Parsing note (F24): DISPLAY below shows the stored digits as they are (parseStamp reads
+// "YYYY-MM-DD HH:MM" without a zone and prints the same clock digits), so what is shown does not
+// depend on the server timezone. Time CALCULATIONS (link expiry, early-join window, countdown,
+// "x minutes ago") live in `lib/time.ts` and are explicit about UTC instants vs wall-clock values.
+// Known gap, recorded as F25: UTC instants (created_at, occurred_at, …) are displayed as their UTC
+// digits, i.e. two hours behind South African time; converting them is a product decision because
+// seeded demo values are literal wall-clock strings.
+
+import { parseUtcStamp } from "./time";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -68,11 +73,15 @@ export function formatTime(value: string | null | undefined): string {
   return d ? hhmm(d) : "—";
 }
 
-/** "35 minutes ago" · "in 2 hours" · "just now". Exact time stays available. */
+/**
+ * "35 minutes ago" · "in 2 hours" · "just now". Exact time stays available.
+ * `value` must be a stored UTC instant (submitted_at, last_login_at, …); it is compared with the real
+ * current time, so the result no longer depends on the server's timezone (F24).
+ */
 export function formatRelative(value: string | null | undefined, from = Date.now()): string {
-  const d = parseStamp(value);
-  if (!d) return "—";
-  const diff = d.getTime() - from;
+  const ms = parseUtcStamp(value);
+  if (Number.isNaN(ms)) return "—";
+  const diff = ms - from;
   const future = diff > 0;
   const mins = Math.round(Math.abs(diff) / 60000);
   if (mins < 1) return "just now";
