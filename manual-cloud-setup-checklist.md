@@ -17,14 +17,13 @@ create accounts or handle credentials). Do each step yourself, tick it, and tell
 - [ ] 💲 RDS PostgreSQL (v16), small burstable instance, single-AZ for staging, storage encrypted, automated backups ≥ 7 days, deletion protection on.
   - [ ] Database `inspector_staging`; app user with a long random password.
   - [ ] Public access: yes (staging only), security group inbound 5432 limited as tightly as practical, TLS enforced (`rds.force_ssl=1`).
-  - [ ] Note the endpoint; build `DATABASE_URL` yourself and store it in Vercel only.
+  - [ ] Download the **regional RDS CA bundle for af-south-1** from AWS (public file) and keep it for `PG_SSL_CA` (the app verifies the server certificate by default; the global bundle is too large for Vercel env vars).
+  - [ ] Note the endpoint; build `DATABASE_URL` yourself (`postgresql://USER:PASS@HOST:5432/DB`, URL-encode the password; `sslmode` not needed) and store it in Vercel only.
 - [ ] S3 bucket `inspector-staging-<suffix>` in af-south-1:
   - [ ] Block **all** public access; default encryption on (SSE-S3 or KMS); versioning on.
   - [ ] No CORS needed (access is server-mediated; downloads are 15-min presigned redirects).
   - [ ] Lifecycle rule to expire staging objects after e.g. 30 days.
-- [ ] Access for the app (preferred first):
-  - [ ] **Option 1:** IAM role trusted by Vercel OIDC, least privilege (below).
-  - [ ] **Option 2:** IAM user with an access key limited to the policy below; store as `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` in Vercel (needs the small code change, F3).
+- [ ] Access for the app: create an **IAM user** with one access key limited to the policy below; store it as `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` in Vercel only (code support is in place — F3 done; OIDC role is a later hardening option).
 
 ```json
 {
@@ -57,7 +56,7 @@ create accounts or handle credentials). Do each step yourself, tick it, and tell
 - [ ] Create/link project from `Smartsure2020/TheInspector`, **root directory `prototype`**, framework Next.js.
 - [ ] Function region: `cpt1` (Cape Town) if available on the chosen plan.
 - [ ] Deployment Protection ON (Vercel Authentication) — the staging URL must not be public. Create a protection-bypass token only if phone tests need it.
-- [ ] Add env vars from `required-secrets-and-env-vars.md` (mark secrets Sensitive; set `NEXT_PUBLIC_*` **before** the first build).
+- [ ] Add env vars from `required-secrets-and-env-vars.md` (incl. `PG_SSL_CA`, `S3_*`) (mark secrets Sensitive; set `NEXT_PUBLIC_*` **before** the first build).
 - [ ] HTTPS: automatic on `*.vercel.app`; no custom domain needed for staging.
 
 ## F. Hand back to me

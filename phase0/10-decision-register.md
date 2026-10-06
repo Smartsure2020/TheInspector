@@ -84,3 +84,11 @@ See `CURRENT-STATE.md` for the consolidated status.
 - Hosting direction for staging: Vercel (protected preview) + Postgres + S3, af-south-1 preferred; fake/internal data only. Needs approvals recorded: Vercel plan, AWS spend, Twilio/LiveKit accounts (see `manual-cloud-setup-checklist.md`).
 - Open production-hosting question (G12): Vercel cannot reach a private RDS without fixed IPs/Secure Compute; decide before production.
 - Staff-only staging pilot: GO only if staging checks pass. **Real client data: NO-GO.**
+
+### Update 2026-10-06 (later) — Phase 5C approvals
+
+- **Approved by Juan-Paul:** F1 (authorize video/signaling routes), F3 (`S3_*` env handling), F5 (explicit Postgres pool/SSL), F2 *partially* (staging-safe upload limit only). Implemented in `cff877d`.
+- **Recorded requirement:** direct-to-S3 (presigned) upload is **required before any real-client pilot**; minimal presigned upload first, Uppy later as a UX/resumable enhancement.
+- **Open (needs decision):** F15 raw link token in `otp_challenges`; F16 client actions not checking OTP.
+- **Not approved yet (no deploy / no spend):** Vercel Pro or alternative hosting; AWS RDS/S3 spend; Twilio account/use; LiveKit account/use.
+- **Gate numbering:** repo IDs are canonical (G1 mobile verification, G2 provider decision, G3 template sign-off). Earlier discussion numbered them workshop / mobile / provider; statuses are recorded by activity, so no renumbering.

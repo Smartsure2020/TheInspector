@@ -1,5 +1,7 @@
 # Deferred gates — The Inspector
 
+> **2026-10-06 note:** these gate IDs are canonical (G1 mobile, G2 provider, G3 template sign-off). Some later discussion numbered them workshop / mobile / provider; see `CURRENT-STATE.md` for current status by activity.
+
 Every item below is a **deliberate deferral with a gate**, not an oversight.
 A gate "passes" only when its conditions are met AND the pass is recorded
 (decision register `phase0/10-decision-register.md` or a dated note in this
