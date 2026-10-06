@@ -35,8 +35,31 @@ not an oversight. Update this file whenever a chunk lands.
 
 ## Known cosmetic items (QA 2026-07-06, accepted)
 
-- Job timeline renders raw event types (e.g. `report_submitted — v2`) for live
-  events; seeded history rows render as prose. Deliberate audit-transparency
-  choice for the prototype.
+- ~~Job timeline renders raw event types (e.g. `report_submitted — v2`) for live
+  events; seeded history rows render as prose.~~ **Resolved 2026-07-30 (UX/UI
+  pass).** The timeline now renders human-readable labels and named detail rows
+  via a presentation-only mapping in `src/lib/format.ts`. **Stored `event_type`
+  values are unchanged** — the mapping is display-side, so audit transparency is
+  preserved and seeded prose rows still render as prose.
 - Seeded evidence items are coloured placeholder tiles without image files;
-  evidence packs annotate them honestly in `index.csv`.
+  evidence packs annotate them honestly in `index.csv`. The tile now carries a
+  visible "No file" marker so it cannot be mistaken for a photograph.
+
+## UX/UI pass (2026-07-30) — what did NOT change
+
+Recorded here so the pass cannot be misread as closing any gate:
+
+- **L1 (mobile live room, gate G1) remains open.** The room's CSS was made
+  deliberate at large desktop, standard laptop, narrow laptop and tablet
+  landscape (verified at 1440×900, 1280×620 and 1024×700 — no clipping, no
+  horizontal overflow, `dvh`-based height, controls always reachable). **No
+  phone testing was performed.** The SP1–SP10 device spike on real handsets over
+  HTTPS is still required before any pilot.
+- **L5 (browser print-to-PDF) remains open.** Print styles improved (navigation
+  and controls hidden, headings kept with their content, figures and table rows
+  not split, tables print unclipped). Still no letterhead, no pagination control
+  and no signature — the report page now says so on screen.
+- **L11–L14 unchanged.** No authentication, permission, POPIA, retention or
+  signed-URL behaviour was added, removed or altered by this pass.
+- **Templates, report generation, evidence rules and the status machine
+  unchanged.** No template version was bumped.

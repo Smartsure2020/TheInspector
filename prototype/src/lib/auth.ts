@@ -85,8 +85,7 @@ export async function requireSession(): Promise<SessionUser> {
 
 export async function requireRole(...roles: string[]): Promise<SessionUser> {
   const user = await requireSession();
-  if (!roles.includes(user.role))
-    throw new Error(`Forbidden: requires ${roles.join(" or ")}`);
+  if (!roles.includes(user.role)) redirect("/access-denied");
   return user;
 }
 

@@ -5,8 +5,9 @@ import { useEffect, useState, useTransition } from "react";
 import {
   cannotAttendAction, clientPingAction, consentAction, consentDeclineAction, requestNewLinkAction,
 } from "@/lib/actions";
+import { Icon } from "@/components/ui/Icon";
+import { ClientAction, ClientCard } from "@/components/ui/client";
 
-/** Fires one telemetry ping on mount (deduped per browser via sessionStorage). */
 export function ClientPing({ token, kind }: { token: string; kind: "link_opened" | "client_waiting" }) {
   useEffect(() => {
     const key = `ping.${kind}.${token}`;
@@ -17,39 +18,65 @@ export function ClientPing({ token, kind }: { token: string; kind: "link_opened"
   return null;
 }
 
+function Acknowledged({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      role="status"
+      className="flex items-start gap-2.5 rounded-lg border border-status-success-line bg-status-success-bg p-4 text-base leading-relaxed text-status-success"
+    >
+      <Icon name="checkCircle" size={19} className="mt-0.5 shrink-0" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
 export function CannotAttendButton({ token }: { token: string }) {
   const [sent, setSent] = useState(false);
   const [pending, start] = useTransition();
+
   if (sent)
-    return <p className="mt-3 text-center text-sm text-emerald-700">Thank you — your coordinator has been notified and will contact you to rebook.</p>;
+    return (
+      <Acknowledged>
+        Thank you — we’ve let your coordinator know, and someone will contact you
+        to arrange another time. You can close this page.
+      </Acknowledged>
+    );
+
   return (
-    <button
+    <ClientAction
+      tone="quiet"
+      icon="calendar"
       disabled={pending}
-      className="mt-2 w-full text-slate-500 text-sm py-2"
       onClick={() => start(async () => { await cannotAttendAction(token); setSent(true); })}
     >
-      I can&apos;t make it
-    </button>
+      {pending ? "Letting them know…" : "I can’t make this time"}
+    </ClientAction>
   );
 }
 
 export function RequestNewLinkButton({ token }: { token: string }) {
   const [sent, setSent] = useState(false);
   const [pending, start] = useTransition();
+
   if (sent)
-    return <p className="mt-4 text-center text-sm text-emerald-700">Thank you — your coordinator has been notified and will send you a new link.</p>;
+    return (
+      <Acknowledged>
+        Thank you — your coordinator has been notified and will send you a new
+        link. You can close this page.
+      </Acknowledged>
+    );
+
   return (
-    <button
+    <ClientAction
+      icon="refresh"
       disabled={pending}
-      className="mt-4 w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold"
       onClick={() => start(async () => { await requestNewLinkAction(token); setSent(true); })}
     >
-      Request a new link
-    </button>
+      {pending ? "Requesting…" : "Request a new link"}
+    </ClientAction>
   );
 }
 
-/** Live countdown for too-early links. */
 export function Countdown({ target }: { target: string }) {
   const [txt, setTxt] = useState("");
   useEffect(() => {
@@ -64,45 +91,97 @@ export function Countdown({ target }: { target: string }) {
     const t = setInterval(tick, 30000);
     return () => clearInterval(t);
   }, [target]);
-  return <span className="font-semibold text-slate-800">{txt}</span>;
+  return <strong className="text-foreground tnum">{txt}</strong>;
 }
 
-export function ConsentForm({ token }: { token: string }) {
+export function ConsentForm({ token, clientName }: { token: string; clientName?: string }) {
   const [name, setName] = useState("");
   const [tick, setTick] = useState(false);
   const [declined, setDeclined] = useState(false);
+  const [touched, setTouched] = useState(false);
   const [pending, start] = useTransition();
 
   if (declined)
     return (
-      <p className="mt-6 text-sm text-slate-600 bg-white rounded-2xl border border-slate-200 p-4">
-        No problem — your assessor has been notified and a person will contact you about
-        other options. You can close this page.
-      </p>
+      <ClientCard tone="plain" icon="info" title="That’s completely fine">
+        <p className="text-base leading-relaxed text-muted">
+          Your assessor has been told, and a person will contact you about other
+          ways to deal with your claim — including an in-person visit. You can
+          close this page.
+        </p>
+      </ClientCard>
     );
 
+  const nameMissing = touched && !name.trim();
+  const tickMissing = touched && !tick;
+  const ready = !!name.trim() && tick;
+
   return (
-    <>
-      <label className="block text-xs font-medium text-slate-500 mt-4 mb-1" htmlFor="consent-name">Please type your full name</label>
-      <input id="consent-name" className="w-full border border-slate-300 rounded-xl px-3 py-3 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" autoComplete="name" />
-      <label className="flex items-start gap-2 mt-3 text-sm text-slate-700">
-        <input type="checkbox" className="mt-1" checked={tick} onChange={(e) => setTick(e.target.checked)} />
-        I understand and agree
-      </label>
-      <button
-        disabled={!name.trim() || !tick || pending}
-        className="mt-5 w-full bg-blue-600 disabled:bg-slate-300 text-white rounded-xl py-3.5 font-semibold"
+    <div className="space-y-4">
+      <div>
+        <label htmlFor="consent-name" className="block text-base font-medium text-foreground">
+          Please type your full name
+        </label>
+        <p id="consent-name-hint" className="mt-1 text-sm text-muted">
+          {clientName
+            ? <>This confirms it’s you. We have you recorded as <strong className="text-foreground">{clientName}</strong>.</>
+            : "This confirms it’s you."}
+        </p>
+        <input
+          id="consent-name"
+          className="mt-2 w-full text-base"
+          style={{ minHeight: "3rem" }}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => setTouched(true)}
+          placeholder="Your full name"
+          autoComplete="name"
+          required
+          aria-describedby={nameMissing ? "consent-name-error" : "consent-name-hint"}
+          aria-invalid={nameMissing || undefined}
+        />
+        {nameMissing && (
+          <p id="consent-name-error" className="mt-1.5 text-sm font-medium text-status-error">
+            Please type your name so we know it’s you.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="consent-tick" className="flex items-start gap-3 text-base leading-relaxed text-foreground">
+          <input
+            id="consent-tick"
+            type="checkbox"
+            className="mt-1 shrink-0"
+            checked={tick}
+            onChange={(e) => { setTick(e.target.checked); setTouched(true); }}
+            aria-invalid={tickMissing || undefined}
+            aria-describedby={tickMissing ? "consent-tick-error" : undefined}
+          />
+          <span>I’ve read the points above and I’m happy to go ahead.</span>
+        </label>
+        {tickMissing && (
+          <p id="consent-tick-error" className="mt-1.5 text-sm font-medium text-status-error">
+            Please tick the box to continue.
+          </p>
+        )}
+      </div>
+
+      <ClientAction
+        icon="arrowRight"
+        disabled={!ready || pending}
         onClick={() => start(async () => { await consentAction(token, name.trim()); })}
       >
-        I agree — continue
-      </button>
-      <button
+        {pending ? "One moment…" : "I agree — continue"}
+      </ClientAction>
+
+      <ClientAction
+        tone="quiet"
         disabled={pending}
-        className="mt-2 w-full text-slate-500 text-sm py-2"
         onClick={() => start(async () => { await consentDeclineAction(token); setDeclined(true); })}
       >
-        I don&apos;t agree
-      </button>
-    </>
+        I’d rather not do this on video
+      </ClientAction>
+    </div>
   );
 }

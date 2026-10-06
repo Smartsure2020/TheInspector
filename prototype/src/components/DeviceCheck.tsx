@@ -1,14 +1,51 @@
 "use client";
-// Camera/mic check (Chunk 1C): preview, front/rear switch, mic level meter,
-// torch test with graceful fallback, plain troubleshooting copy.
-// Logs device_check_passed (with results) when the client continues.
+// Camera/mic check (Chunk 1C) — now a short guided readiness test rather than a
+// row of browser controls. Same mechanics: getUserMedia preview, front/rear
+// switch, mic level meter, torch test with graceful fallback, and the same
+// `device_check_passed` ping with the same payload when the client continues.
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClientShell } from "@/components/Chrome";
 import { clientPingAction } from "@/lib/actions";
+import { Icon, IconName } from "@/components/ui/Icon";
+import { ClientAction, ClientCard, ClientStepHeader } from "@/components/ui/client";
 
 type CamState = "asking" | "ok" | "denied" | "nocamera";
 type TorchState = "untested" | "on" | "unsupported";
+
+function StepRow({
+  n, title, state, detail, children,
+}: {
+  n: number;
+  title: string;
+  state: "waiting" | "pass" | "attention" | "skipped";
+  detail?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  const mark: Record<typeof state, { icon: IconName; cls: string; word: string }> = {
+    waiting: { icon: "clock", cls: "border-border bg-surface text-muted", word: "not checked yet" },
+    pass: { icon: "check", cls: "border-status-success-line bg-status-success-bg text-status-success", word: "working" },
+    attention: { icon: "warning", cls: "border-status-warning-line bg-status-warning-bg text-status-warning", word: "needs attention" },
+    skipped: { icon: "minus", cls: "border-border bg-surface text-muted-light", word: "skipped" },
+  };
+  const m = mark[state];
+  return (
+    <li className="flex gap-3 border-b border-border py-3 last:border-0">
+      <span className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${m.cls}`}>
+        <Icon name={m.icon} size={15} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-base font-medium text-foreground">
+          <span className="mr-1.5 text-muted tnum">{n}.</span>
+          {title}
+          <span className="sr-only"> — {m.word}</span>
+        </p>
+        {detail && <div className="mt-1 text-sm leading-relaxed text-muted">{detail}</div>}
+        {children && <div className="mt-2.5">{children}</div>}
+      </div>
+    </li>
+  );
+}
 
 export function DeviceCheck({ token }: { token: string }) {
   const router = useRouter();
@@ -21,8 +58,8 @@ export function DeviceCheck({ token }: { token: string }) {
   const [micOk, setMicOk] = useState(false);
   const [torch, setTorch] = useState<TorchState>("untested");
   const [torchMsg, setTorchMsg] = useState("");
+  const [continuing, setContinuing] = useState(false);
 
-  // Camera + mic stream (restarts on facing switch).
   useEffect(() => {
     let cancelled = false;
     let audioCtx: AudioContext | undefined;
@@ -40,7 +77,6 @@ export function DeviceCheck({ token }: { token: string }) {
         setCam("ok");
         if (facing === "environment") setTriedRear(true);
 
-        // Simple mic level meter.
         const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
         if (AC && stream.getAudioTracks().length) {
           audioCtx = new AC();
@@ -78,19 +114,18 @@ export function DeviceCheck({ token }: { token: string }) {
     try {
       await track.applyConstraints({ advanced: [{ torch: true } as MediaTrackConstraintSet] });
       setTorch("on");
-      setTorchMsg("Torch is on — tap again during the call whenever you need light.");
+      setTorchMsg("Torch is on — tap it again during the call whenever you need light.");
       setTimeout(() => {
         track.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => {});
       }, 2500);
     } catch {
       setTorch("unsupported");
-      setTorchMsg("The torch can't be switched on from the browser on this phone — that's OK. If a room is dark, just put a light on.");
+      setTorchMsg("Your phone doesn’t let the browser control the torch. That’s completely normal — if a room is dark, just switch a light on.");
     }
   };
 
   const continueOn = async () => {
-    // Only a real pass lights the staff "camera check passed" indicator;
-    // continue-anyway still proceeds but leaves the dot grey (accurate signal).
+    setContinuing(true);
     if (cam === "ok") {
       await clientPingAction(token, "device_check_passed", {
         camera: true, rear_tried: triedRear, mic: micOk, torch,
@@ -99,59 +134,173 @@ export function DeviceCheck({ token }: { token: string }) {
     router.push(`/c/${token}/waiting`);
   };
 
+  const allGood = cam === "ok" && micOk;
+
   return (
     <ClientShell>
-      <div className="mt-6">
-        <h1 className="text-xl font-bold text-slate-800">Quick camera check</h1>
-        <p className="text-sm text-slate-500 mt-1">Three quick things — takes under a minute.</p>
+      <ClientStepHeader
+        step="Camera check"
+        title="Quick camera check"
+        lede="Three short checks so the call goes smoothly. It takes under a minute."
+      />
 
-        <div className="bg-black rounded-2xl overflow-hidden mt-4 aspect-[3/4] relative">
-          {cam === "ok" ? (
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-center p-6 text-sm text-slate-300">
-              {cam === "asking" && "Asking for camera access — please tap Allow in the pop-up…"}
-              {cam === "denied" && "We can't see your camera. Look for the camera icon in your browser's address bar and choose Allow, then reload this page. If it still doesn't work, don't worry — your assessor will phone you."}
-              {cam === "nocamera" && "No camera was found on this device. Please open the link on your phone instead."}
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-2 mt-3">
-          <button className="flex-1 bg-white border border-slate-300 rounded-xl py-3 text-sm font-medium disabled:opacity-40" disabled={cam !== "ok"}
-            onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}>
-            🔄 {facing === "user" ? "Try your back camera" : "Back to front camera"}
-          </button>
-          <button className="flex-1 bg-white border border-slate-300 rounded-xl py-3 text-sm font-medium disabled:opacity-40"
-            disabled={cam !== "ok" || facing !== "environment"}
-            title={facing !== "environment" ? "Switch to the back camera first" : ""}
-            onClick={testTorch}>
-            🔦 Test torch
-          </button>
-        </div>
-        {facing === "user" && cam === "ok" && (
-          <p className="text-[11px] text-slate-400 mt-1">Tip: the torch only works with the back camera.</p>
-        )}
-        {torchMsg && <p className={`text-xs mt-2 ${torch === "on" ? "text-emerald-700" : "text-slate-500"}`}>{torchMsg}</p>}
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 mt-3">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-700">🎤 Say hello:</span>
-            <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
-              <div className={`h-full transition-all ${micOk ? "bg-emerald-500" : "bg-blue-400"}`} style={{ width: `${micLevel}%` }} />
-            </div>
-            {micOk && <span className="text-emerald-600 text-sm font-semibold">✓</span>}
+      {/* ---- Live preview ------------------------------------------------- */}
+      <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-border bg-room-bg">
+        {cam === "ok" ? (
+          <video ref={videoRef} autoPlay playsInline muted aria-label="Your camera preview" className="h-full w-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <Icon
+              name={cam === "asking" ? "spinner" : cam === "nocamera" ? "videoOff" : "camera"}
+              size={26}
+              className={`text-on-dark-muted ${cam === "asking" ? "animate-spin" : ""}`}
+            />
+            <p className="text-base leading-relaxed text-on-dark">
+              {cam === "asking" && "Asking for camera access — please tap “Allow” in the pop-up."}
+              {cam === "denied" && "We can’t see your camera yet."}
+              {cam === "nocamera" && "No camera was found on this device."}
+            </p>
           </div>
-          {!micOk && cam === "ok" && <p className="text-[11px] text-slate-400 mt-1.5">If the bar doesn&apos;t move when you talk, check your phone isn&apos;t on silent/muted for the browser.</p>}
-        </div>
+        )}
+        {cam === "ok" && (
+          <p className="absolute left-2 top-2 rounded-sm bg-black/55 px-2 py-1 text-sm text-white">
+            {facing === "user" ? "Front camera" : "Back camera"}
+          </p>
+        )}
+      </div>
 
-        <button
-          className="mt-4 w-full bg-blue-600 disabled:bg-slate-300 text-white rounded-xl py-3.5 font-semibold"
-          disabled={cam === "asking"}
+      {/* ---- Recovery guidance ------------------------------------------- */}
+      {cam === "denied" && (
+        <ClientCard tone="warning" className="mt-3" icon="camera" title="How to allow the camera">
+          <ol className="space-y-1.5 text-base leading-relaxed text-foreground/85">
+            <li>1. Look for a camera or lock icon in your browser’s address bar.</li>
+            <li>2. Tap it and choose <strong>Allow</strong> for camera and microphone.</li>
+            <li>3. Reload this page.</li>
+          </ol>
+          <p className="mt-2.5 text-base text-muted">
+            If it still doesn’t work, don’t worry — you can carry on below and your
+            assessor will phone you instead.
+          </p>
+        </ClientCard>
+      )}
+      {cam === "nocamera" && (
+        <ClientCard tone="warning" className="mt-3" icon="videoOff" title="No camera on this device">
+          <p className="text-base leading-relaxed text-foreground/85">
+            Please open the same link on your phone — the assessment needs a camera
+            you can carry around. You can also carry on below and your assessor
+            will phone you.
+          </p>
+        </ClientCard>
+      )}
+
+      {/* ---- The checks --------------------------------------------------- */}
+      <ClientCard title="Your checks" className="mt-3">
+        <ol>
+          <StepRow
+            n={1}
+            title="Camera"
+            state={cam === "ok" ? "pass" : cam === "asking" ? "waiting" : "attention"}
+            detail={cam === "ok" ? "We can see you." : cam === "asking" ? "Waiting for your permission." : "We can’t see your camera."}
+          />
+
+          <StepRow
+            n={2}
+            title="Back camera"
+            state={triedRear ? "pass" : cam === "ok" ? "waiting" : "skipped"}
+            detail="You’ll use the back camera to show the damage — worth checking it works."
+          >
+            <ClientAction
+              tone="secondary"
+              icon="cameraFlip"
+              disabled={cam !== "ok"}
+              onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}
+            >
+              {facing === "user" ? "Try my back camera" : "Back to front camera"}
+            </ClientAction>
+          </StepRow>
+
+          <StepRow
+            n={3}
+            title="Microphone"
+            state={micOk ? "pass" : cam === "ok" ? "waiting" : "skipped"}
+            detail={micOk ? "We can hear you." : "Say hello — the bar should move."}
+          >
+            <div className="flex items-center gap-3">
+              <Icon name="mic" size={18} className={micOk ? "text-status-success" : "text-muted"} />
+              <div
+                role="progressbar"
+                aria-label="Microphone level"
+                aria-valuenow={micLevel}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                className="h-2.5 flex-1 overflow-hidden rounded-full bg-surface"
+              >
+                <div
+                  className={`h-full rounded-full transition-[width] duration-100 ${micOk ? "bg-status-success" : "bg-muted"}`}
+                  style={{ width: `${micLevel}%` }}
+                />
+              </div>
+              {micOk && <Icon name="checkCircle" size={18} title="Microphone working" className="text-status-success" />}
+            </div>
+            {!micOk && cam === "ok" && (
+              <p className="mt-1.5 text-sm text-muted">
+                If the bar doesn’t move when you talk, check your phone isn’t on
+                silent for the browser.
+              </p>
+            )}
+          </StepRow>
+
+          <StepRow
+            n={4}
+            title="Torch (optional)"
+            state={torch === "on" ? "pass" : torch === "unsupported" ? "skipped" : cam === "ok" ? "waiting" : "skipped"}
+            detail={facing !== "environment"
+              ? "Switch to your back camera first — the torch only works with that one."
+              : "Handy for dark cupboards and roof spaces."}
+          >
+            <ClientAction
+              tone="secondary"
+              icon="torch"
+              disabled={cam !== "ok" || facing !== "environment"}
+              onClick={testTorch}
+            >
+              Test the torch
+            </ClientAction>
+            {torchMsg && (
+              <p className={`mt-1.5 text-sm leading-relaxed ${torch === "on" ? "text-status-success" : "text-muted"}`}>
+                {torchMsg}
+              </p>
+            )}
+          </StepRow>
+        </ol>
+      </ClientCard>
+
+      {/* ---- Continue ----------------------------------------------------- */}
+      <div className="mt-5 space-y-2">
+        <ClientAction
+          tone={cam === "ok" ? "primary" : "secondary"}
+          icon={cam === "ok" ? "arrowRight" : "clock"}
+          disabled={cam === "asking" || continuing}
           onClick={continueOn}
         >
-          {cam === "ok" ? "Looks good — continue" : "Continue anyway — my assessor can phone me"}
-        </button>
+          {continuing
+            ? "One moment…"
+            : cam === "ok"
+              ? allGood ? "All good — continue" : "Continue"
+              : "Continue anyway"}
+        </ClientAction>
+        {cam !== "ok" && cam !== "asking" && (
+          <p className="text-center text-sm leading-relaxed text-muted">
+            You can still continue. Your assessor will see that your camera didn’t
+            work and will phone you to sort it out.
+          </p>
+        )}
+        {cam === "ok" && !micOk && (
+          <p className="text-center text-sm text-muted">
+            We haven’t heard your microphone yet — you can carry on and talk on the
+            call, or try saying hello first.
+          </p>
+        )}
       </div>
     </ClientShell>
   );

@@ -18,7 +18,7 @@ export default async function CreateJob() {
     (mandates[m.user_id] ??= []).push(m.template_id);
   }
   return (
-    <StaffShell title="Create job" user={user}>
+    <StaffShell title="Create job" user={user} section="/jobs/new">
       <CreateJobForm
         templates={templates.map((t) => ({ id: t.id, name: t.name, version: t.version, job_type: t.job_type, is_reference_only: t.is_reference_only, is_limited: t.is_limited, sections: t.sections }))}
         assessors={assessors}

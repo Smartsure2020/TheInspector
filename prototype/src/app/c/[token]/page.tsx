@@ -1,24 +1,36 @@
 // S8 — Client landing page with link-state handling (Chunk 1C).
 // States: valid | too_early | expired | revoked | invalid (+ upload links route on).
-// VISIBILITY RULE: no internal data, ever (phase1/01 rule 2).
+// VISIBILITY RULE: no internal data, ever (phase1/01 rule 2) — no job status, no
+// staff notes, no concern flags, no assessor commentary, no other jobs.
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClientShell } from "@/components/Chrome";
 import { resolveToken, getClient } from "@/lib/data";
-import { CannotAttendButton, ClientPing, Countdown, RequestNewLinkButton } from "@/components/ClientBits";
+import { formatDateTime } from "@/lib/format";
+import {
+  CannotAttendButton, ClientPing, Countdown, RequestNewLinkButton,
+} from "@/components/ClientBits";
+import {
+  ClientBullets, ClientCard, ClientLinkAction, ClientOutcome, ClientStepHeader,
+} from "@/components/ui/client";
+import { Icon } from "@/components/ui/Icon";
 import { checkOtpVerified } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
 
-function LinkProblem({ title, body, token, offerNewLink }: { title: string; body: string; token: string; offerNewLink: boolean }) {
+function LinkProblem({
+  title, body, whatNow, token, offerNewLink,
+}: { title: string; body: string; whatNow: string; token: string; offerNewLink: boolean }) {
   return (
     <ClientShell>
-      <div className="text-center mt-16">
-        <div className="text-4xl mb-3">🔗</div>
-        <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
-        <p className="text-sm text-slate-500 mt-2">{body}</p>
-        {offerNewLink && <RequestNewLinkButton token={token} />}
-      </div>
+      <ClientOutcome
+        icon="linkOff"
+        title={title}
+        actions={offerNewLink ? <RequestNewLinkButton token={token} /> : undefined}
+      >
+        <p>{body}</p>
+        <p className="mt-3 text-sm">{whatNow}</p>
+      </ClientOutcome>
     </ClientShell>
   );
 }
@@ -33,20 +45,42 @@ export default async function ClientLanding({ params }: { params: Promise<{ toke
     redirect(`/c/${token}/verify`);
 
   if (info.state === "invalid")
-    return <LinkProblem token={token} offerNewLink={false} title="This link isn't recognised"
-      body="Please check you tapped the most recent link in your SMS or email, or contact your claims coordinator." />;
+    return (
+      <LinkProblem
+        token={token}
+        offerNewLink={false}
+        title="This link isn't recognised"
+        body="It may have been typed in by hand, or shortened by a messaging app."
+        whatNow="Please tap the most recent link in your SMS or email. If it still doesn't work, contact your claims coordinator."
+      />
+    );
   if (info.state === "revoked")
-    return <LinkProblem token={token} offerNewLink={true} title="This link has been replaced"
-      body="Your appointment was rebooked, so this older link no longer works. Please use the newest link we sent you — or request a fresh one below." />;
+    return (
+      <LinkProblem
+        token={token}
+        offerNewLink
+        title="This link has been replaced"
+        body="Your appointment was rebooked, so this older link no longer works."
+        whatNow="Use the newest link we sent you — or ask for a fresh one below and your coordinator will send it."
+      />
+    );
   if (info.state === "expired")
-    return <LinkProblem token={token} offerNewLink={true} title="This link has expired"
-      body="No problem — these links only work around your appointment time. Request a new one below and your coordinator will sort it out." />;
+    return (
+      <LinkProblem
+        token={token}
+        offerNewLink
+        title="This link has expired"
+        body="No problem — these links only work around your appointment time."
+        whatNow="Request a new one below and your coordinator will sort it out."
+      />
+    );
 
   const job = info.job!;
   const client = await getClient(job.client_id);
   const claimRef = job.claim_number.length > 5 ? `…${job.claim_number.slice(-5)}` : job.claim_number;
-  // Per-type "please have ready" list. Safety rule: NEVER send a client onto
-  // a roof or ladder (phase0 T3) — storm wording says so explicitly.
+  const isSurvey = job.job_type === "survey";
+  const assessor = job.assessor_name ?? "Your assessor";
+
   const prepByType: Record<string, string[]> = {
     geyser_water: ["Access to the geyser (cupboard or roof access point)", "Your plumber's invoice, if you have it", "The rooms with water damage"],
     accidental: ["The damaged item", "Its receipt or box, if you have it"],
@@ -57,25 +91,58 @@ export default async function ClientLanding({ params }: { params: Promise<{ toke
     survey_commercial: ["About an hour to walk through the premises with your phone", "Access to fire equipment, electrical boards and storage areas", "Someone who knows the building and its tenants"],
   };
   const prep = prepByType[job.claim_type] ?? prepByType.general;
+  /** Storm keeps its explicit do-NOT-climb safety wording, called out separately. */
+  const isStorm = job.claim_type === "storm";
+
+  const prepCard = (
+    <ClientCard title="Please have ready" icon="clipboard" tone="plain">
+      <ClientBullets items={prep} />
+      {isStorm && (
+        <p className="mt-3 flex gap-2 rounded-md border border-status-warning-line bg-status-warning-bg p-3 text-base font-medium text-status-warning">
+          <Icon name="warning" size={18} className="mt-0.5 shrink-0" />
+          <span>
+            Please stay safe: do <strong>not</strong> climb onto the roof, onto a
+            ladder, or anywhere unsafe to show us the damage. Filming from the
+            ground or a window is enough.
+          </span>
+        </p>
+      )}
+    </ClientCard>
+  );
 
   if (info.state === "too_early")
     return (
       <ClientShell>
         <ClientPing token={token} kind="link_opened" />
-        <div className="mt-10 text-center">
-          <div className="text-4xl mb-3">⏰</div>
-          <h1 className="text-xl font-bold text-slate-800">You&apos;re a little early</h1>
-          <p className="text-sm text-slate-600 mt-3">
-            Hello <b>{client?.full_name}</b> — your {job.job_type === "survey" ? "video risk survey" : "video assessment"} with {job.assessor_name ?? "your assessor"} starts in{" "}
-            <Countdown target={info.scheduledStart!} />.
+        <ClientStepHeader
+          title="You’re a little early"
+          lede={
+            <>
+              Hello <strong className="text-foreground">{client?.full_name}</strong> — your{" "}
+              {isSurvey ? "video risk survey" : "video assessment"} with {assessor} starts in{" "}
+              <Countdown target={info.scheduledStart!} />.
+            </>
+          }
+        />
+
+        <ClientCard tone="accent" icon="calendar" title="Your appointment">
+          <p className="text-lg font-semibold text-foreground tnum">
+            {formatDateTime(info.scheduledStart, { long: true })}
           </p>
-          <p className="text-sm text-slate-500 mt-2">Come back to this same link at <b>{info.scheduledStart}</b>.</p>
-          <div className="bg-blue-50 rounded-2xl p-4 mt-5 text-left">
-            <h2 className="text-sm font-semibold text-blue-900">Please have ready:</h2>
-            <ul className="text-sm text-blue-800 mt-1 space-y-1">{prep.map((p) => <li key={p}>• {p}</li>)}</ul>
-          </div>
+          <p className="mt-1 text-base text-muted">
+            Come back to this same link at that time — you don’t need to do
+            anything until then.
+          </p>
+        </ClientCard>
+
+        <div className="mt-4 space-y-4">
+          {prepCard}
           <CannotAttendButton token={token} />
-          <p className="mt-6"><Link href={`/c/${token}/consent`} className="text-[11px] text-slate-400 underline">Prototype preview: continue anyway</Link></p>
+          <p className="text-center">
+            <Link href={`/c/${token}/consent`} className="text-sm text-muted-light underline">
+              Prototype preview: continue anyway
+            </Link>
+          </p>
         </div>
       </ClientShell>
     );
@@ -83,27 +150,38 @@ export default async function ClientLanding({ params }: { params: Promise<{ toke
   return (
     <ClientShell>
       <ClientPing token={token} kind="link_opened" />
-      <div className="mt-6">
-        <div className="text-xs tracking-widest text-slate-400 font-semibold">ACORN</div>
-        <h1 className="text-xl font-bold text-slate-800 mt-1">{job.job_type === "survey" ? "Your video risk survey" : "Your video assessment"}</h1>
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 mt-4 text-sm">
-          <p className="text-slate-700">Hello <b>{client?.full_name}</b></p>
-          <p className="text-slate-600 mt-2">
-            <b>{job.assessor_name ?? "Your assessor"}</b> will meet you on video on
-            <br />
-            <span className="text-lg font-semibold text-slate-800">{info.scheduledStart ?? "your scheduled time"}</span>
-          </p>
-          <p className="text-xs text-slate-400 mt-1">Claim reference: {claimRef}</p>
-        </div>
+      <ClientStepHeader
+        title={isSurvey ? "Your video risk survey" : "Your video assessment"}
+        lede={
+          <>
+            Hello <strong className="text-foreground">{client?.full_name}</strong>. This takes
+            place on your phone — no app to install, nothing to download.
+          </>
+        }
+      />
 
-        <div className="bg-blue-50 rounded-2xl p-4 mt-3">
-          <h2 className="text-sm font-semibold text-blue-900">Please have ready:</h2>
-          <ul className="text-sm text-blue-800 mt-1 space-y-1">{prep.map((p) => <li key={p}>• {p}</li>)}</ul>
-        </div>
+      <ClientCard tone="accent" icon="video" title="What happens now">
+        <p className="text-base text-muted">
+          <strong className="text-foreground">{assessor}</strong> will meet you on video at
+        </p>
+        <p className="mt-1 text-xl font-semibold text-foreground tnum">
+          {formatDateTime(info.scheduledStart, { long: true })}
+        </p>
+        <ol className="mt-3 space-y-1.5 text-base text-muted">
+          <li>1. You’ll confirm you’re happy to go ahead.</li>
+          <li>2. We’ll do a quick camera and microphone check.</li>
+          <li>3. You’ll wait a moment, then {assessor} lets you in.</li>
+        </ol>
+        <p className="mt-3 text-sm text-muted-light">Reference: {claimRef}</p>
+      </ClientCard>
 
-        <Link href={`/c/${token}/consent`} className="block text-center mt-5 w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3.5 font-semibold">
-          I&apos;m ready — continue
-        </Link>
+      <div className="mt-4 space-y-4">
+        {prepCard}
+
+        <ClientLinkAction href={`/c/${token}/consent`} icon="arrowRight">
+          I’m ready — continue
+        </ClientLinkAction>
+
         <CannotAttendButton token={token} />
       </div>
     </ClientShell>

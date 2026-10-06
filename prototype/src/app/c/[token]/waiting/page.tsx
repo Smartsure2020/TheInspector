@@ -1,11 +1,13 @@
-// S11 — Waiting room (Chunk 1C: calm state + client_waiting ping for staff
-// readiness indicators). Real admit flow arrives in 1D.
+// S11 — Waiting room (Chunk 1C readiness ping + 1D admit listener).
+// VISIBILITY RULE: client-facing information only.
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClientShell } from "@/components/Chrome";
 import { resolveToken, getClient } from "@/lib/data";
 import { ClientPing } from "@/components/ClientBits";
 import { WaitingLive } from "@/components/WaitingLive";
+import { ClientCard, ClientStepHeader } from "@/components/ui/client";
+import { Icon } from "@/components/ui/Icon";
 import { checkOtpVerified } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
@@ -16,27 +18,36 @@ export default async function WaitingRoom({ params }: { params: Promise<{ token:
   const info = await resolveToken(token);
   if (info.state === "invalid" || info.state === "revoked" || info.state === "expired") redirect(`/c/${token}`);
   const first = info.job ? (await getClient(info.job.client_id))?.full_name.split(" ")[0] : "there";
-  const assessor = info.job?.assessor_name ?? "your assessor";
+  const assessor = info.job?.assessor_name ?? "Your assessor";
 
   return (
     <ClientShell>
       <ClientPing token={token} kind="client_waiting" />
-      {info.job && <WaitingLive token={token} jobId={info.job.id} />}
-      <div className="mt-20 text-center">
-        <div className="animate-pulse text-5xl">🟢</div>
-        <h1 className="text-xl font-bold text-slate-800 mt-4">Thanks, {first}</h1>
-        <p className="text-slate-600 mt-2 text-sm">
-          {assessor} will let you in shortly.
-          <br />
-          Please keep this screen open — you don&apos;t need to do anything.
-        </p>
-        <p className="text-xs text-slate-400 mt-6">
-          You&apos;ll be connected automatically when {assessor} lets you in.
-        </p>
-        <Link href={`/c/${token}/session`} className="inline-block mt-10 text-[11px] text-slate-400 underline">
-          (prototype shortcut: enter session view)
+
+      <ClientStepHeader
+        step="Join"
+        title={`Thanks, ${first} — you’re all set`}
+        lede={`${assessor} will let you in shortly. There’s nothing else for you to do.`}
+      />
+
+      {info.job && <WaitingLive token={token} jobId={info.job.id} assessorName={assessor} />}
+
+      <ClientCard title="Done so far" className="mt-3" icon="checkCircle" tone="plain">
+        <ul className="space-y-2">
+          {["You confirmed you’re happy to go ahead", "Your camera and microphone were checked", `${assessor} has been told you’re waiting`].map((t) => (
+            <li key={t} className="flex items-start gap-2.5 text-base leading-relaxed text-foreground/85">
+              <Icon name="check" size={16} className="mt-1 shrink-0 text-status-success" />
+              {t}
+            </li>
+          ))}
+        </ul>
+      </ClientCard>
+
+      <p className="mt-6 text-center">
+        <Link href={`/c/${token}/session`} className="text-sm text-muted-light underline">
+          Prototype shortcut: enter the session view
         </Link>
-      </div>
+      </p>
     </ClientShell>
   );
 }

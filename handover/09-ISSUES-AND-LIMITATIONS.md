@@ -84,13 +84,32 @@ caveats for handover. Update BOTH when behaviour changes. Gate references
 
 ## Known cosmetic items (QA 2026-07-06, accepted)
 
-16. Job timeline renders raw event types (e.g. `report_submitted — v2`) for
-    live events; seeded history rows render as prose. Deliberate
-    audit-transparency choice for the prototype.
+16. ~~Job timeline renders raw event types (e.g. `report_submitted — v2`).~~
+    **Resolved 2026-07-30 (UX/UI pass).** The timeline renders human-readable
+    labels and named detail rows through a display-only mapping in
+    `src/lib/format.ts`. **Stored `event_type` values are unchanged**, so audit
+    transparency is intact; seeded history rows still render as prose.
 
 17. Seeded evidence items are coloured placeholder tiles **without image
     files**; evidence packs annotate them honestly in `index.csv`. A job with
-    real uploads (e.g. after the demo upload step) shows actual files.
+    real uploads (e.g. after the demo upload step) shows actual files. The tile
+    now carries a visible "No file" marker.
+
+## UX/UI pass (2026-07-30) — gates NOT closed
+
+The pass was presentation-only. It did not touch the status machine, server
+actions, event logging, templates, report generation, evidence rules, upload
+restrictions, the fire restriction or the `SessionAdapter` boundary, and it
+introduced no authentication, permission, POPIA or retention behaviour.
+
+- **Item 1 / L1 (mobile live room, gate G1) is still open.** The room's layout
+  was made deliberate and verified at 1440×900, 1280×620 and 1024×700 (no
+  clipping, no horizontal overflow, `dvh`-based sizing). **No phone was tested.**
+  The SP1–SP10 device spike on real handsets over HTTPS remains a prerequisite
+  for any pilot.
+- **Item 6 / L5 (browser print-to-PDF) is still open.** Print styles improved;
+  there is still no letterhead, pagination control or signature, and the report
+  page now states this on screen.
 
 ## Dev / build caveats
 
@@ -119,6 +138,21 @@ caveats for handover. Update BOTH when behaviour changes. Gate references
     (no peer connection). Capture with no client video reports "No client
     video to capture yet" — expected.
 
-24. **Build gate status** — `npx tsc --noEmit` and `npm run build` (21
-    routes) clean as of 2026-07-06; `npm run qa:smoke` 22/22 PASS on the
-    pristine book. Keep all three green.
+24. **Build gate status** — as of 2026-07-30: `npx tsc --noEmit` clean,
+    `npm run build` clean (30 routes), `npm run qa:smoke` **27/27 PASS** on the
+    pristine book. Keep all three green. (Earlier baseline: 21 routes / 22 checks
+    on 2026-07-06, before the staff-auth work added routes and RBAC checks.)
+
+25. **A server/client boundary mistake will not fail the build.** Calling a
+    plain helper exported from a `"use client"` module inside a server component
+    type-checks and builds, then throws at request time. The smoke suite is what
+    catches it — run it, don't rely on `npm run build` alone.
+
+26. **`npm run build` then `npm run dev` can poison `.next`.** Observed
+    2026-07-30: after a production build, the dev server served the deepest
+    nested route (`/jobs/[id]/report/final`) as a **404 with no error logged**,
+    while every other route was fine — smoke went 24/27. It is a stale-artefact
+    problem, not a code defect. Fix: stop the server, `rm -rf .next` (PowerShell:
+    `Remove-Item -Recurse -Force .next`), restart, and re-run. Because the change
+    loop in file 10 asks for both `npm run build` and `npm run qa:smoke`, clear
+    `.next` between them if the smoke suite reports unexplained 404s.

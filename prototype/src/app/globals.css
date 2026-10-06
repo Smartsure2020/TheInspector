@@ -1,58 +1,466 @@
 @import "tailwindcss";
 
-/* Light-only UI: the prototype is styled light throughout, so OS dark mode
-   must not flip inherited text colours (was making form fields unreadable). */
+/* ============================================================================
+   THE INSPECTOR — prototype design tokens
+   One system, three environments:
+     A. Staff operations workspace  — light, dense, precise
+     B. Client guided journey       — light, calm, large touch targets
+     C. Live assessment workspace   — purposeful dark surfaces (--room-*)
+   Everything is centralised here. Components must not introduce raw hex values.
+   ========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ---- surfaces ---------------------------------------------------------- */
+  --background: #ffffff;         /* working surface (cards, tables, forms)    */
+  --page: #f6f7f6;               /* application background (subtly warm)      */
+  --surface: #f1f3f2;            /* recessed / zebra / inert fills            */
+  --surface-raised: #ffffff;     /* elevated surface                          */
+  --overlay: rgb(20 24 28 / 0.55);
+
+  /* ---- text -------------------------------------------------------------- */
+  --foreground: #14181c;         /* deep ink — primary text and nav           */
+  --muted: #55605c;              /* secondary text                            */
+  --muted-light: #8a938f;        /* tertiary / placeholder                    */
+  --on-dark: #f4f6f5;
+  --on-dark-muted: #a6b0ac;
+
+  /* ---- lines ------------------------------------------------------------- */
+  --border: #e3e6e4;             /* hairline                                  */
+  --border-strong: #c8cecb;      /* emphasised divider / input border         */
+  --border-ink: #14181c;         /* deliberate ink rule                       */
+
+  /* ---- brand ------------------------------------------------------------- */
+  --accent: #0f6b58;             /* Acorn-aligned deep green-teal             */
+  --accent-hover: #0b5445;
+  --accent-soft: #e8f2ef;
+  --accent-line: #b6d5cc;
+  --accent-on: #ffffff;
+
+  /* ---- semantic state ---------------------------------------------------- */
+  --status-success: #1a7f43;
+  --status-success-bg: #eff9f2;
+  --status-success-line: #b3ddc4;
+  --status-warning: #96610b;
+  --status-warning-bg: #fdf6e7;
+  --status-warning-line: #e8d19a;
+  --status-error: #b02a1f;
+  --status-error-bg: #fdf2f1;
+  --status-error-line: #eebbb5;
+  --status-info: #1c50c8;
+  --status-info-bg: #eef3fe;
+  --status-info-line: #bdcef5;
+
+  /* survey / risk-survey job type — the only semantic use of violet */
+  --status-survey: #5b3ea8;
+  --status-survey-bg: #f3f0fb;
+  --status-survey-line: #cfc3ea;
+
+  /* locked / terminal records */
+  --status-locked: #4b5563;
+  --status-locked-bg: #f2f4f4;
+  --status-locked-line: #cfd5d3;
+
+  /* prototype warning band */
+  --proto: #7a3d05;
+  --proto-bg: #fbeddb;
+  --proto-line: #e0b485;
+
+  /* ---- connection states (live room) ------------------------------------- */
+  --conn-idle: #8a938f;
+  --conn-connecting: #b98410;
+  --conn-connected: #22a05a;
+  --conn-reconnecting: #d08700;
+  --conn-disconnected: #d4483a;
+  --conn-ended: #8a938f;
+
+  /* ---- live-room dark surfaces ------------------------------------------- */
+  --room-bg: #0e1215;
+  --room-panel: #171d21;
+  --room-panel-2: #1f262b;
+  --room-line: #2c3439;
+  --room-line-strong: #414b51;
+  --room-stage: #05080a;
+
+  /* ---- radii / elevation ------------------------------------------------- */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --shadow-1: 0 1px 2px rgb(20 24 28 / 0.06);
+  --shadow-2: 0 8px 28px rgb(20 24 28 / 0.16);
+
+  /* ---- control heights (4pt scale) --------------------------------------- */
+  --h-sm: 1.75rem;   /* 28 — inline chips / table row actions */
+  --h-md: 2.25rem;   /* 36 — default staff control            */
+  --h-lg: 2.75rem;   /* 44 — client / primary                 */
+  --h-touch: 3rem;   /* 48 — client primary on mobile         */
+
+  /* ---- motion ------------------------------------------------------------ */
+  --motion-fast: 110ms;
+  --motion: 170ms;
+  --motion-slow: 260ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
   color-scheme: light;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-page: var(--page);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-ink: var(--border-ink);
+  --color-muted: var(--muted);
+  --color-muted-light: var(--muted-light);
+  --color-on-dark: var(--on-dark);
+  --color-on-dark-muted: var(--on-dark-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-accent-on: var(--accent-on);
+
+  --color-status-success: var(--status-success);
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-success-line: var(--status-success-line);
+  --color-status-warning: var(--status-warning);
+  --color-status-warning-bg: var(--status-warning-bg);
+  --color-status-warning-line: var(--status-warning-line);
+  --color-status-error: var(--status-error);
+  --color-status-error-bg: var(--status-error-bg);
+  --color-status-error-line: var(--status-error-line);
+  --color-status-info: var(--status-info);
+  --color-status-info-bg: var(--status-info-bg);
+  --color-status-info-line: var(--status-info-line);
+  --color-status-survey: var(--status-survey);
+  --color-status-survey-bg: var(--status-survey-bg);
+  --color-status-survey-line: var(--status-survey-line);
+  --color-status-locked: var(--status-locked);
+  --color-status-locked-bg: var(--status-locked-bg);
+  --color-status-locked-line: var(--status-locked-line);
+
+  --color-proto: var(--proto);
+  --color-proto-bg: var(--proto-bg);
+  --color-proto-line: var(--proto-line);
+
+  --color-conn-idle: var(--conn-idle);
+  --color-conn-connecting: var(--conn-connecting);
+  --color-conn-connected: var(--conn-connected);
+  --color-conn-reconnecting: var(--conn-reconnecting);
+  --color-conn-disconnected: var(--conn-disconnected);
+  --color-conn-ended: var(--conn-ended);
+
+  --color-room-bg: var(--room-bg);
+  --color-room-panel: var(--room-panel);
+  --color-room-panel-2: var(--room-panel-2);
+  --color-room-line: var(--room-line);
+  --color-room-line-strong: var(--room-line-strong);
+  --color-room-stage: var(--room-stage);
+
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 }
 
 body {
-  background: var(--background);
+  background: var(--page);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Form controls never inherit page/theme colours: dark text on white,
-   regardless of OS colour scheme. Checkbox/radio/range/file keep native looks.
-   Lives in the base layer so Tailwind utility classes can still override. */
+/* ============================================================================
+   Base element styling
+   ========================================================================== */
+
 @layer base {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
   textarea,
   select {
-    color: #0f172a;
-    background-color: #ffffff;
+    color: var(--foreground);
+    background-color: var(--background);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: 0.4375rem 0.625rem;
+    font-size: 0.875rem;
+    line-height: 1.375rem;
+    min-height: var(--h-md);
+    transition: border-color var(--motion-fast) var(--ease), box-shadow var(--motion-fast) var(--ease);
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):hover:not(:disabled),
+  textarea:hover:not(:disabled),
+  select:hover:not(:disabled) {
+    border-color: var(--muted);
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  input[aria-invalid="true"],
+  textarea[aria-invalid="true"],
+  select[aria-invalid="true"] {
+    border-color: var(--status-error);
+  }
+  input[aria-invalid="true"]:focus,
+  textarea[aria-invalid="true"]:focus,
+  select[aria-invalid="true"]:focus {
+    box-shadow: 0 0 0 3px var(--status-error-bg);
   }
 
   input::placeholder,
   textarea::placeholder {
-    color: #94a3b8;
+    color: var(--muted-light);
   }
 
-  /* Native dropdown lists (options render in an OS popup, not the page) */
   select option,
   select optgroup {
-    color: #0f172a;
-    background: #ffffff;
+    color: var(--foreground);
+    background: var(--background);
   }
 
-  /* Disabled/reference-only options (e.g. Fire template): muted but legible */
   select option:disabled {
-    color: #64748b;
-    background: #f8fafc;
+    color: var(--muted-light);
+    background: var(--surface);
   }
 
   input:disabled,
   textarea:disabled,
   select:disabled {
-    color: #64748b;
+    color: var(--muted);
+    background: var(--surface);
+    border-color: var(--border);
+    cursor: not-allowed;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--accent);
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  hr {
+    border-color: var(--border);
+  }
+
+  /* On dark room surfaces the ink focus ring disappears — brighten it. */
+  .on-room *:focus-visible,
+  .on-room:focus-visible {
+    outline-color: #7fd4bd;
+  }
+
+  /* Form controls sitting on the live room's dark panels. Scoped by .on-room so
+     no !important is needed, and modals rendered above the room (which use the
+     light working surface) are excluded via .on-light. */
+  .on-room input:not([type="checkbox"]):not([type="radio"]),
+  .on-room textarea,
+  .on-room select {
+    background-color: var(--room-bg);
+    color: var(--on-dark);
+    border-color: var(--room-line-strong);
+  }
+  .on-room input::placeholder,
+  .on-room textarea::placeholder {
+    color: var(--on-dark-muted);
+  }
+  .on-room input:focus,
+  .on-room textarea:focus,
+  .on-room select:focus {
+    border-color: #7fd4bd;
+    box-shadow: 0 0 0 3px rgb(127 212 189 / 0.2);
+  }
+  .on-room .on-light input:not([type="checkbox"]):not([type="radio"]),
+  .on-room .on-light textarea,
+  .on-room .on-light select {
+    background-color: var(--background);
+    color: var(--foreground);
+    border-color: var(--border-strong);
+  }
+}
+
+/* ============================================================================
+   Shared utilities (used by the shared components in src/components/ui)
+   ========================================================================== */
+
+@layer components {
+  /* Tabular numerals: times, durations, counts, versions, job numbers. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Small caps label. Restrained tracking — not the old 0.2em shout. */
+  .label {
+    font-size: 0.6875rem;   /* 11px — the floor for supporting labels */
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .eyebrow {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-light);
+  }
+
+  /* Horizontal overflow is always contained by its own scroller, never body. */
+  .scroll-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Mobile safe areas — client surfaces and the live-room control bars. */
+  .safe-b { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .safe-t { padding-top: max(0.5rem, env(safe-area-inset-top)); }
+  .safe-x {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  /* Visually hidden but available to assistive tech. */
+  .sr-only-focusable {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .sr-only-focusable:focus {
+    position: fixed;
+    top: 0.5rem; left: 0.5rem;
+    width: auto; height: auto;
+    clip: auto;
+    z-index: 100;
+    padding: 0.5rem 0.875rem;
+    background: var(--foreground);
+    color: var(--on-dark);
+    border-radius: var(--radius-md);
+  }
+
+  .anim-in {
+    animation: inspector-fade-in var(--motion) var(--ease) both;
+  }
+  .anim-sheet {
+    animation: inspector-sheet var(--motion) var(--ease) both;
+  }
+  .anim-drawer {
+    animation: inspector-drawer var(--motion) var(--ease) both;
+  }
+  .anim-drawer-right {
+    animation: inspector-drawer-right var(--motion) var(--ease) both;
+  }
+  /* Capture confirmation — a single brief edge flash, never a full-screen wipe. */
+  .anim-flash {
+    animation: inspector-flash 240ms var(--ease) both;
+  }
+}
+
+@keyframes inspector-fade-in {
+  from { opacity: 0 }
+  to   { opacity: 1 }
+}
+@keyframes inspector-sheet {
+  from { opacity: 0; transform: translateY(6px) }
+  to   { opacity: 1; transform: none }
+}
+@keyframes inspector-drawer {
+  from { transform: translateX(-100%) }
+  to   { transform: none }
+}
+@keyframes inspector-drawer-right {
+  from { transform: translateX(100%) }
+  to   { transform: none }
+}
+@keyframes inspector-flash {
+  0%   { box-shadow: inset 0 0 0 0 rgb(255 255 255 / 0) }
+  30%  { box-shadow: inset 0 0 0 6px rgb(255 255 255 / 0.9) }
+  100% { box-shadow: inset 0 0 0 0 rgb(255 255 255 / 0) }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+   Print — the final report is the only print target.
+   Browser print-to-PDF only (L5 / gate G11): no letterhead, no pagination
+   control, no signature. The report says so itself.
+   ========================================================================== */
+
+@media print {
+  .no-print { display: none !important; }
+
+  :root { --page: #ffffff; }
+
+  body {
+    background: #ffffff;
+    font-size: 10.5pt;
+  }
+
+  @page {
+    margin: 16mm 14mm;
+  }
+
+  /* Keep headings attached to their content and figures intact. */
+  h1, h2, h3, h4 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+  figure, tr, li, .print-keep {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+  .print-block {
+    break-inside: auto;
+  }
+
+  a { text-decoration: none; color: inherit; }
+
+  /* Tables must print in full, not inside a clipped scroller. */
+  .scroll-x { overflow: visible !important; }
+
+  /* The app shell is a fixed-height scroller on screen; printing needs the
+     whole document to flow onto pages instead. */
+  .app-shell, .app-scroll {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
   }
 }

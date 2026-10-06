@@ -1,4 +1,5 @@
 import { StaffShell } from "@/components/Chrome";
+import { PageHeader } from "@/components/ui/primitives";
 import { requireRole } from "@/lib/auth";
 import { CreateUserForm } from "./CreateUserForm";
 
@@ -8,9 +9,13 @@ export default async function NewUserPage() {
   const user = await requireRole("admin");
 
   return (
-    <StaffShell title="Create user" user={user}>
-      <div className="max-w-lg">
-        <h1 className="text-xl font-semibold text-slate-800 mb-4">Create user</h1>
+    <StaffShell title="Create user" user={user} section="/admin/users">
+      <div className="max-w-xl">
+        <PageHeader
+          trail={[{ label: "Pipeline", href: "/admin" }, { label: "Users", href: "/admin/users" }, { label: "New user" }]}
+          title="Create a staff user"
+          lede="Three short groups: who they are, what they can do, and their first password."
+        />
         <CreateUserForm />
       </div>
     </StaffShell>

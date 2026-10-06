@@ -68,7 +68,8 @@ prototype/
 
 | Route | Purpose |
 |---|---|
-| `/` (`page.tsx`) | Role picker (Lerato/Sipho/Anje/Craig) + demo client links. Entry point. |
+| `/` (`page.tsx`) | Entry point — redirects to the signed-in role's workspace, or to `/login`. |
+| `/login` | Prototype entry screen: sign-in form plus the standing prototype disclosures (role-play data, codename, non-removable report limitations, prototype-grade access) and the four demo accounts. Deliberately not dressed up as a production login. |
 | `/admin` | Admin/coordinator pipeline — full 18-job book. |
 | `/assessor` | Assessor dashboard — "Today" cards with client-readiness dots, grouped queues. |
 | `/manager` | Manager review queue (claims + survey reports) + team pipeline. |
@@ -105,14 +106,36 @@ demo tokens are long-dated seeds).
 
 ## `src/components`
 
+### Shared UI layer (`src/components/ui`, added by the 2026-07-30 UX/UI pass)
+
+Presentational only — no domain logic, no data access, no mutations.
+
+| File | Role |
+|---|---|
+| `ui/Icon.tsx` | The single icon system: inline SVG on a 24-grid, `currentColor`, no dependency. Replaces every emoji-as-control in the app. |
+| `ui/primitives.tsx` | Buttons (always with explicit `type`), badges (`StatusBadge`/`JobTypeBadge`/`PriorityBadge`/`LockedBadge`/`EvidenceKindBadge`), `PageHeader`, `Breadcrumbs`, `Panel`, `DetailList`, `InlineAlert`, `EmptyState`, `Skeleton`, `SummaryStrip`/`SummaryTile`, `DataTable`/`Th`/`Td`/`Tr`, `ProgressBar`, `Timeline*`, `FieldGroup`/`FormField`, `TabNav`. Not a client module, so server components render it directly. |
+| `ui/Overlay.tsx` | `Modal`, `ConfirmDialog`, `Drawer`, `LiveRegion` — dialog semantics, focus move-in/trap/return, Escape, scroll lock, pending state, no double-submit. **These replace every native `confirm()`.** |
+| `ui/client.tsx` | Client-journey building blocks (`ClientStepHeader`, `ClientAction`, `ClientCard`, `ClientBullets`, `ClientOutcome`) — 48px targets, larger type, plain language. |
+| `ui/nav.ts` | Nav item shape + link styling shared by the server sidebar and the client drawer. |
+| `lib/format.ts` | **Presentation-layer formatting only.** Readable dates/times/relative times, and the stored `event_type` → human-label/detail mapping used by the job timeline. Stored values are never modified; parsing matches `data.ts` exactly, so no timezone assumption is introduced. |
+| `lib/prompts.ts` | The canned client-guidance prompts (`kind` values unchanged from `RoomMessage`), shared so the assessor sees the exact sentence the client reads. |
+
+Design tokens (surfaces, text, lines, brand accent, semantic status, connection
+states, live-room dark surfaces, radii, shadows, control heights, motion,
+safe-area, print rules) all live in `src/app/globals.css` and are exposed to
+Tailwind via `@theme inline`. Components must not introduce raw hex values.
+
+### Feature components
+
 | Component | Role |
 |---|---|
-| `Chrome.tsx`, `RolePicker.tsx` | App frame, PROTOTYPE banner, acting-user header; role selection. |
+| `Chrome.tsx` | App frame: permanent PROTOTYPE banner, `StaffShell` (role-aware sidebar + context bar + skip link, server-rendered), `ClientShell` (mobile-first, safe-area aware), `PhotoTile`. |
+| `ChromeClient.tsx` | The only client-side parts of the shell: mobile navigation drawer and sign-out confirmation. |
 | `CreateJobForm.tsx` | Template picker with live section/evidence preview, fire greyed out. |
 | `JobActions.tsx` | Job-detail actions (assign, mock start, transitions, cancel/no-show). |
 | `AssessorRoom.tsx` | Assessor live room: adapter wiring, checklist panel, item→banner push, capture button/hotkeys (C/Space), HI-RES request, guidance chips, can't-capture flow, capture tray, end-session summary, admit control. |
 | `ClientRoom.tsx`, `WaitingLive.tsx`, `DeviceCheck.tsx`, `ClientBits.tsx` | Client-side session/waiting/device-check UI + readiness pings. |
-| `EvidenceTools.tsx`, `UploadItem.tsx`, `MockUploader.tsx` | Gallery curation controls; client upload widgets. |
+| `EvidenceTools.tsx`, `UploadItem.tsx` | Gallery curation controls; client upload widget. (`MockUploader.tsx` was the pre-1G visual stub — removed 2026-07-30, verified unused and superseded by `UploadItem`.) |
 | `ReportEditor.tsx`, `ManagerReview.tsx`, `PrintButton.tsx` | Narrative editing + auto-section preview; return/approve UI; print-to-PDF. |
 | `CopyButton.tsx` | Copy-to-clipboard for links/SMS text. |
 

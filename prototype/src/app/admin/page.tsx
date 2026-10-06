@@ -1,88 +1,185 @@
 import Link from "next/link";
-import { StaffShell, StatusChip } from "@/components/Chrome";
+import { StaffShell } from "@/components/Chrome";
+import { Icon } from "@/components/ui/Icon";
+import {
+  Badge, DataTable, EmptyState, JobTypeBadge, LinkButton, PageHeader, PriorityBadge,
+  StatusBadge, SummaryStrip, SummaryTile, Td, Th, Tr,
+} from "@/components/ui/primitives";
 import { jobTypeLabel, listJobs } from "@/lib/data";
+import { formatDateTime, STATUS_MEANING } from "@/lib/format";
 import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const STATUSES = ["New", "Assigned", "Scheduled", "In progress", "Awaiting evidence", "Awaiting report", "Report submitted", "Returned for correction", "Report completed", "Cancelled", "No-show"];
+const STATUSES = [
+  "New", "Assigned", "Scheduled", "In progress", "Awaiting evidence", "Awaiting report",
+  "Report submitted", "Returned for correction", "Report completed", "Cancelled", "No-show",
+];
+
+const CLOSED = new Set(["Report completed", "Cancelled"]);
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const user = await requireRole("admin");
   const { status } = await searchParams;
   const all = await listJobs();
-  const active = status ? all.filter((j) => j.status === status) : all;
-
-  const exceptions = [
-    ["Unassigned", all.filter((j) => j.status === "New").length],
-    ["No-shows to reschedule", all.filter((j) => j.status === "No-show").length],
-    ["Awaiting evidence", all.filter((j) => j.status === "Awaiting evidence").length],
-    ["In review", all.filter((j) => j.status === "Report submitted").length],
-  ] as const;
+  const filtered = status ? all.filter((j) => j.status === status) : all;
+  const count = (s: string) => all.filter((j) => j.status === s).length;
+  const activeCount = all.filter((j) => !CLOSED.has(j.status)).length;
 
   return (
-    <StaffShell title="Admin dashboard" user={user}>
-      <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-xl font-semibold text-slate-800">Assessment &amp; survey pipeline</h1>
-        <Link href="/admin/users" className="ml-auto bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg px-4 py-2 text-sm font-medium">
-          Manage users
-        </Link>
-        <Link href="/jobs/new" className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium">
-          + New job
-        </Link>
-      </div>
+    <StaffShell title="Assessment & survey pipeline" user={user} section="/admin">
+      <PageHeader
+        title="Assessment & survey pipeline"
+        lede="The whole demo book. Start with the exceptions below — each one links to the jobs behind it."
+        meta={
+          <>
+            <Badge tone="neutral" icon="list">{all.length} jobs in the book</Badge>
+            <Badge tone="accent" icon="dot">{activeCount} still active</Badge>
+          </>
+        }
+        actions={
+          <>
+            <LinkButton href="/admin/users" variant="secondary" icon="users">Manage users</LinkButton>
+            <LinkButton href="/jobs/new" variant="primary" icon="plus">New job</LinkButton>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        {exceptions.map(([label, n]) => (
-          <div key={label} className={`rounded-xl p-3 border ${n > 0 ? "bg-amber-50 border-amber-300" : "bg-white border-slate-200"}`}>
-            <div className="text-2xl font-bold text-slate-800">{n}</div>
-            <div className="text-xs text-slate-500">{label}</div>
+      {/* ---- Exceptions: real counts, operational meaning, direct route ---- */}
+      <h2 className="sr-only">Exceptions needing attention</h2>
+      <SummaryStrip className="mb-8">
+        <SummaryTile
+          label="Unassigned"
+          value={count("New")}
+          meaning="Needs an assessor before it can be booked"
+          href="/admin?status=New"
+          tone="danger"
+          icon="user"
+        />
+        <SummaryTile
+          label="No-shows"
+          value={count("No-show")}
+          meaning="Client did not attend — rebook or close"
+          href="/admin?status=No-show"
+          tone="danger"
+          icon="alert"
+        />
+        <SummaryTile
+          label="Awaiting evidence"
+          value={count("Awaiting evidence")}
+          meaning="Waiting on client uploads to finish the file"
+          href="/admin?status=Awaiting+evidence"
+          tone="warning"
+          icon="images"
+        />
+        <SummaryTile
+          label="In manager review"
+          value={count("Report submitted")}
+          meaning="Reports sitting in the review queue"
+          href="/admin?status=Report+submitted"
+          tone="info"
+          icon="clipboard"
+        />
+      </SummaryStrip>
+
+      {/* ---- Filter toolbar (scales past eleven statuses) ------------------ */}
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <form method="get" action="/admin" className="flex flex-wrap items-end gap-2">
+          <div>
+            <label htmlFor="status-filter" className="mb-1 block text-xs font-medium text-muted">
+              Filter by status
+            </label>
+            <select id="status-filter" name="status" defaultValue={status ?? ""} className="min-w-[15rem]">
+              <option value="">All statuses ({all.length})</option>
+              {STATUSES.filter((s) => count(s) > 0).map((s) => (
+                <option key={s} value={s}>{s} ({count(s)})</option>
+              ))}
+            </select>
           </div>
-        ))}
-      </div>
-
-      <div className="mb-3 flex flex-wrap gap-1.5 text-xs">
-        <Link href="/admin" className={`rounded-full px-2.5 py-1 border ${!status ? "bg-slate-800 text-white border-slate-800" : "bg-white border-slate-300 text-slate-600"}`}>All ({all.length})</Link>
-        {STATUSES.map((s) => {
-          const n = all.filter((j) => j.status === s).length;
-          if (n === 0) return null;
-          return (
-            <Link key={s} href={`/admin?status=${encodeURIComponent(s)}`}
-              className={`rounded-full px-2.5 py-1 border ${status === s ? "bg-slate-800 text-white border-slate-800" : "bg-white border-slate-300 text-slate-600"}`}>
-              {s} ({n})
+          <button type="submit" className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border-strong bg-background px-3.5 text-sm font-medium transition-colors hover:bg-surface">
+            <Icon name="filter" size={15} />
+            Apply
+          </button>
+          {status && (
+            <Link href="/admin" className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground">
+              <Icon name="close" size={14} />
+              Clear
             </Link>
-          );
-        })}
+          )}
+        </form>
+
+        <p className="text-sm text-muted" aria-live="polite">
+          {status
+            ? <>Showing <strong className="tnum text-foreground">{filtered.length}</strong> {status} · <span className="text-muted-light">{STATUS_MEANING[status]}</span></>
+            : <>Showing all <strong className="tnum text-foreground">{all.length}</strong> jobs</>}
+        </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left text-xs uppercase">
+      {/* ---- The job book -------------------------------------------------- */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon="search"
+          title={`No jobs with status “${status}”`}
+          actions={<LinkButton href="/admin" variant="secondary" icon="list">Show all jobs</LinkButton>}
+        >
+          Nothing in the book is currently at this status. Clear the filter to see
+          the rest of the pipeline.
+        </EmptyState>
+      ) : (
+        <DataTable caption="All assessment and survey jobs" minWidth="52rem">
+          <thead>
             <tr>
-              <th className="px-3 py-2">Job</th><th className="px-3 py-2">Client</th><th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Assessor</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Scheduled</th>
+              <Th>Job</Th>
+              <Th className="hidden md:table-cell">Client</Th>
+              <Th>Type</Th>
+              <Th className="hidden lg:table-cell">Assessor</Th>
+              <Th>Status</Th>
+              <Th className="hidden sm:table-cell">Appointment</Th>
+              <Th align="right"><span className="sr-only">Open</span></Th>
             </tr>
           </thead>
           <tbody>
-            {active.map((j) => (
-              <tr key={j.id} className="border-t border-slate-100 hover:bg-blue-50/50">
-                <td className="px-3 py-2">
-                  <Link href={`/jobs/${j.id}`} className="text-blue-700 font-medium hover:underline">{j.job_number}</Link>
-                  <div className="text-xs text-slate-400">{j.claim_number}</div>
-                </td>
-                <td className="px-3 py-2">{j.client_name}</td>
-                <td className="px-3 py-2 text-xs">
-                  {jobTypeLabel(j)}
-                  {j.job_type === "survey" && <span className="ml-1.5 text-[9px] font-semibold bg-teal-100 text-teal-800 rounded px-1 py-0.5 align-middle">SURVEY</span>}
-                </td>
-                <td className="px-3 py-2">{j.assessor_name ?? <span className="text-slate-400">—</span>}</td>
-                <td className="px-3 py-2"><StatusChip status={j.status} /></td>
-                <td className="px-3 py-2 text-xs text-slate-500">{j.scheduled_start ?? "—"}</td>
-              </tr>
+            {filtered.map((j) => (
+              <Tr key={j.id}>
+                <Td>
+                  <Link href={`/jobs/${j.id}`} className="font-medium tnum text-foreground hover:underline">
+                    {j.job_number}
+                  </Link>
+                  <div className="mt-0.5 font-mono text-xs text-muted">{j.claim_number}</div>
+                  {/* Client folds into the primary cell on small screens. */}
+                  <div className="mt-0.5 text-xs text-muted md:hidden">{j.client_name}</div>
+                </Td>
+                <Td className="hidden md:table-cell">{j.client_name}</Td>
+                <Td>
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="text-sm">{jobTypeLabel(j)}</span>
+                    <span className="flex flex-wrap gap-1">
+                      <JobTypeBadge jobType={j.job_type} />
+                      <PriorityBadge priority={j.priority} />
+                    </span>
+                  </div>
+                </Td>
+                <Td className="hidden lg:table-cell">
+                  {j.assessor_name ?? <span className="text-status-error">Unassigned</span>}
+                </Td>
+                <Td><StatusBadge status={j.status} /></Td>
+                <Td className="hidden sm:table-cell text-sm text-muted tnum">
+                  {j.scheduled_start ? formatDateTime(j.scheduled_start) : "Not booked"}
+                </Td>
+                <Td align="right">
+                  <Link
+                    href={`/jobs/${j.id}`}
+                    aria-label={`Open job ${j.job_number}`}
+                    className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
+                  >
+                    Open <Icon name="chevronRight" size={13} />
+                  </Link>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
-      </div>
+        </DataTable>
+      )}
     </StaffShell>
   );
 }

@@ -11,8 +11,8 @@
     },
     {
       "name": "prod",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["start"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "start"],
       "port": 3000,
       "autoPort": true,
       "cwd": "prototype"

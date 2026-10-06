@@ -1,6 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import { loginAction } from "@/lib/auth-actions";
+import { Button, FormField, InlineAlert } from "@/components/ui/primitives";
 
 export function LoginForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(
@@ -13,45 +14,38 @@ export function LoginForm({ next }: { next?: string }) {
   );
 
   return (
-    <form action={formAction} className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+    <form action={formAction} className="mt-6 space-y-4 rounded-lg border border-border bg-background p-5 shadow-1">
       {state?.error && (
-        <div className="text-sm text-red-700 bg-red-50 rounded-lg px-3 py-2">
+        <InlineAlert tone="danger" role="alert" title="Couldn’t sign in">
           {state.error}
-        </div>
+        </InlineAlert>
       )}
-      <div>
-        <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-          Email
-        </label>
+
+      <FormField id="email" label="Email" required>
         <input
           id="email"
           name="email"
           type="email"
           required
           autoComplete="email"
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full"
         />
-      </div>
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
-          Password
-        </label>
+      </FormField>
+
+      <FormField id="password" label="Password" required>
         <input
           id="password"
           name="password"
           type="password"
           required
           autoComplete="current-password"
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full"
         />
-      </div>
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full bg-slate-900 text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {pending ? "Signing in..." : "Sign in"}
-      </button>
+      </FormField>
+
+      <Button type="submit" variant="primary" size="lg" className="w-full" busy={pending} busyLabel="Signing in">
+        Sign in
+      </Button>
     </form>
   );
 }

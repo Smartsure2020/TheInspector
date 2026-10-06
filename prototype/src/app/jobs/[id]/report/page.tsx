@@ -1,18 +1,38 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { StaffShell } from "@/components/Chrome";
 import { ReportEditor } from "@/components/ReportEditor";
+import { Icon } from "@/components/ui/Icon";
+import {
+  Badge, EmptyState, InlineAlert, JobTypeBadge, LinkButton, PageHeader, Panel, StatusBadge,
+} from "@/components/ui/primitives";
 import { getJob, listReports, userNameMap } from "@/lib/data";
-import { Fragment } from "react";
 import { buildReportModel, initialNarrative } from "@/lib/report";
+import { formatDateTime, formatRelative } from "@/lib/format";
 import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
+
+const VERSION_TONE: Record<string, "success" | "danger" | "neutral" | "info"> = {
+  approved: "success",
+  returned: "danger",
+  draft: "neutral",
+  submitted: "info",
+};
 
 export default async function ReportBuilder({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireSession();
   const { id } = await params;
   const job = await getJob(id);
-  if (!job) return <StaffShell title="Report" user={user}><p className="text-sm text-slate-500">Unknown job.</p></StaffShell>;
+
+  if (!job) {
+    return (
+      <StaffShell title="Report" user={user}>
+        <EmptyState icon="search" title="We can’t find that job" />
+      </StaffShell>
+    );
+  }
+
   const model = (await buildReportModel(id))!;
   const reports = await listReports(id);
   const names = await userNameMap();
@@ -23,6 +43,7 @@ export default async function ReportBuilder({ params }: { params: Promise<{ id: 
   }
   const latest = reports.at(-1);
   const { narrative } = await initialNarrative(id, model);
+  const isSurvey = model.jobType === "survey";
 
   const canSubmit = job.status === "Awaiting report" || job.status === "Returned for correction";
   const readOnly = job.status === "Report completed" || job.status === "Report submitted" || job.status === "Cancelled";
@@ -33,30 +54,64 @@ export default async function ReportBuilder({ params }: { params: Promise<{ id: 
 
   return (
     <StaffShell title={`Report builder — ${job.job_number}`} user={user}>
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <h1 className="text-xl font-semibold text-slate-800">Report builder</h1>
-            <span className="text-xs text-slate-400">{job.status}</span>
-            <Link href={`/jobs/${id}/report/final`} className="ml-auto text-xs text-blue-700 hover:underline">View report page →</Link>
-          </div>
+      <PageHeader
+        trail={[{ label: job.job_number, href: `/jobs/${id}` }, { label: "Report" }]}
+        title="Report builder"
+        lede={isSurvey
+          ? "Write the survey narrative. Particulars, limitations, the evidence index and sign-off are generated from the record."
+          : "Write the assessment narrative. Particulars, limitations, the evidence index and sign-off are generated from the record."}
+        meta={
+          <>
+            <StatusBadge status={job.status} />
+            <JobTypeBadge jobType={job.job_type} />
+            {latest && <Badge tone={VERSION_TONE[latest.status] ?? "neutral"} icon="document">v{latest.version} · {latest.status}</Badge>}
+          </>
+        }
+        actions={
+          <>
+            <LinkButton href={`/jobs/${id}/evidence`} variant="secondary" icon="images">Evidence</LinkButton>
+            <LinkButton href={`/jobs/${id}/report/final`} variant="secondary" icon="eye">View report page</LinkButton>
+          </>
+        }
+      />
 
-          {!canSubmit && !readOnly && (
-            <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3">
-              Submit becomes available at status <b>Awaiting report</b> (currently {job.status}). You can draft now.
-            </p>
-          )}
-          {job.status === "Report submitted" && (
-            <p className="text-xs text-violet-700 bg-violet-50 rounded-lg px-3 py-2 mb-3">
-              Version {latest?.version} is with the manager — editing reopens if it is returned.
-            </p>
-          )}
-          {job.status === "Report completed" && (
-            <p className="text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2 mb-3">
-              Approved and locked — see the <Link href={`/jobs/${id}/report/final`} className="underline">report page</Link>.
-            </p>
-          )}
+      {/* ---- Status framing ------------------------------------------------ */}
+      {!canSubmit && !readOnly && (
+        <InlineAlert tone="warning" className="mb-5" title={`Submit unlocks at status “Awaiting report” — currently ${job.status}`}>
+          You can draft the narrative now; it saves as a draft version. The submit
+          button appears once the session has ended with evidence complete.
+        </InlineAlert>
+      )}
+      {job.status === "Report submitted" && (
+        <InlineAlert
+          tone="info"
+          className="mb-5"
+          title={`Version ${latest?.version} is with the manager`}
+          actions={<LinkButton href={`/jobs/${id}/report/final`} variant="secondary" size="sm" icon="eye">Open the submitted report</LinkButton>}
+        >
+          Editing reopens only if the manager returns it with comments.
+        </InlineAlert>
+      )}
+      {job.status === "Report completed" && (
+        <InlineAlert
+          tone="success"
+          className="mb-5"
+          title="Approved and locked"
+          actions={<LinkButton href={`/jobs/${id}/report/final`} variant="secondary" size="sm" icon="eye">Open the approved report</LinkButton>}
+        >
+          The manager approved this report, which locks the job. Nothing further
+          can be edited here.
+        </InlineAlert>
+      )}
+      {job.status === "Cancelled" && (
+        <InlineAlert tone="locked" className="mb-5" title="This job was cancelled">
+          The report is read-only.
+        </InlineAlert>
+      )}
 
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* ---- Editable narrative ---------------------------------------- */}
+        <div className="min-w-0">
           <ReportEditor
             jobId={id}
             sections={model.sections.map((s) => ({ key: s.key, title: s.title }))}
@@ -68,64 +123,175 @@ export default async function ReportBuilder({ params }: { params: Promise<{ id: 
           />
 
           {reports.length > 0 && (
-            <div className="mt-4 bg-white rounded-xl border border-slate-200 p-3">
-              <h3 className="text-xs font-semibold text-slate-600 mb-1">Versions</h3>
-              {reports.map((r) => (
-                <div key={r.id} className="text-xs text-slate-500 py-0.5">
-                  v{r.version} — {r.status}
-                  {r.submitted_at ? ` · submitted ${r.submitted_at} by ${r.submitted_by}` : ""}
-                  {r.reviewed_by ? ` · reviewed by ${r.reviewed_by}` : ""}
-                  {r.status === "returned" && r.review_comments ? ` · "${(Object.values(JSON.parse(r.review_comments)) as string[]).join(" ")}"` : ""}
-                </div>
-              ))}
-            </div>
+            <Panel title="Version history" subtitle={`${reports.length} version${reports.length === 1 ? "" : "s"}`} className="mt-6" flush>
+              <ul className="divide-y divide-border">
+                {reports.map((r) => (
+                  <li key={r.id} className="px-4 py-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold tnum text-foreground">v{r.version}</span>
+                      <Badge tone={VERSION_TONE[r.status] ?? "neutral"}>{r.status}</Badge>
+                      {r.submitted_at && (
+                        <span className="text-xs text-muted">
+                          submitted <span className="tnum">{formatDateTime(r.submitted_at)}</span> by {r.submitted_by}
+                        </span>
+                      )}
+                      {r.reviewed_by && <span className="text-xs text-muted">· reviewed by {r.reviewed_by}</span>}
+                    </div>
+                    {r.status === "returned" && r.review_comments && (
+                      <p className="mt-1 text-sm text-status-error">
+                        “{(Object.values(JSON.parse(r.review_comments)) as string[]).join(" ")}”
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           )}
         </div>
 
-        {/* Live preview of the auto sections the submit will lock in */}
-        <div className="bg-white rounded-xl border border-slate-300 shadow-sm p-6 text-sm h-fit">
-          <div className="text-center border-b border-slate-200 pb-4 mb-4">
-            <div className="text-[10px] tracking-widest text-slate-400">ACORN — PLACEHOLDER BRANDING · PROTOTYPE OUTPUT ONLY</div>
-            <h2 className="text-lg font-bold text-slate-800 mt-1">{model.docTitle}</h2>
-            <p className="text-xs text-slate-500">{model.cover.claimNumber} · {model.cover.clientName} · {model.cover.dateOfLoss}</p>
-            <p className="text-[10px] text-slate-400 mt-1">{model.cover.templateName} v{model.cover.templateVersion} · {model.cover.jobNumber}</p>
-          </div>
+        {/* ---- Generated content (never editable) ------------------------ */}
+        <div className="min-w-0 lg:sticky lg:top-2 lg:self-start">
+          <section className="rounded-lg border border-border bg-background shadow-1">
+            <div className="border-b border-border px-4 py-3">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Icon name="lock" size={15} className="text-muted" />
+                Generated by the system
+              </h2>
+              <p className="mt-1 text-xs text-muted">
+                Rebuilt from the job record every time the report is opened. Not
+                editable here or anywhere else.
+              </p>
+            </div>
 
-          <h3 className="font-semibold text-slate-700 text-xs uppercase">{model.jobType === "survey" ? "Survey particulars" : "Claim particulars"} <span className="text-slate-400 font-normal normal-case">(auto)</span></h3>
-          <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-slate-600 mt-1 mb-3">
-            {model.particulars.map(([k, v]) => (<Fragment key={k}><dt className="text-slate-400">{k}</dt><dd>{v}</dd></Fragment>))}
-          </dl>
-
-          <h3 className="font-semibold text-slate-700 text-xs uppercase">Featured evidence → report figures</h3>
-          <div className="grid grid-cols-3 gap-2 mt-2 mb-3">
-            {model.featured.map((e, i) => (
-              <div key={e.id}>
-                {e.hasFile ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={`/api/files/${e.id}`} alt={e.label} className="h-20 w-full object-cover rounded-md" />
-                ) : (
-                  <div className="h-20 rounded-md" style={{ background: `linear-gradient(135deg, hsl(${e.hue ?? 200} 45% 55%), hsl(${e.hue ?? 200} 45% 30%))` }} />
-                )}
-                <p className="text-[9px] text-slate-500 mt-0.5 truncate">Fig {i + 1} — {e.label}</p>
+            <div className="p-4">
+              {/* Cover */}
+              <div className="border-b-2 border-foreground pb-4 text-center">
+                <p className="eyebrow">Acorn — placeholder branding · prototype output only</p>
+                <h3 className="mt-2 text-base font-semibold text-foreground">{model.docTitle}</h3>
+                <p className="mt-1 font-mono text-xs text-muted">
+                  {model.cover.claimNumber} · {model.cover.clientName}
+                </p>
+                <p className="font-mono text-xs text-muted-light">
+                  {model.cover.templateName} v{model.cover.templateVersion} · {model.cover.jobNumber}
+                </p>
               </div>
-            ))}
-            {model.featured.length === 0 && (
-              <p className="text-xs text-slate-400 col-span-3">No featured evidence — star items in the <Link href={`/jobs/${id}/evidence`} className="underline">gallery</Link>.</p>
-            )}
-          </div>
 
-          <h3 className="font-semibold text-slate-700 text-xs uppercase">{model.jobType === "survey" ? "Survey limitations" : "Limitations & outstanding items"} <span className="bg-slate-800 text-white rounded px-1 normal-case font-normal">AUTO — non-removable</span></h3>
-          <ul className="text-[11px] text-slate-600 mt-1 mb-3 list-disc ml-4 space-y-0.5">
-            {model.limitations.map((l, i) => <li key={i}>{l}</li>)}
-          </ul>
+              <AutoSection title={isSurvey ? "Survey particulars" : "Claim particulars"}>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  {model.particulars.map(([k, v]) => (
+                    <Fragment key={k}>
+                      <dt className="text-muted-light">{k}</dt>
+                      <dd className="text-foreground">{v}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              </AutoSection>
 
-          <h3 className="font-semibold text-slate-700 text-xs uppercase">Evidence index <span className="text-slate-400 font-normal normal-case">(auto — {model.evidenceIndex.length} items)</span></h3>
-          <p className="text-[11px] text-slate-500 mt-1 mb-3">Every evidence item is indexed with section, checklist item and timestamp; the full table renders on the report page.</p>
+              <AutoSection
+                title="Featured evidence → report figures"
+                note={
+                  <>
+                    Chosen in the{" "}
+                    <Link href={`/jobs/${id}/evidence`} className="text-accent underline">evidence gallery</Link>
+                  </>
+                }
+              >
+                {model.featured.length === 0 ? (
+                  <p className="text-sm text-muted">
+                    No figures selected yet — feature items in the{" "}
+                    <Link href={`/jobs/${id}/evidence`} className="text-accent underline">gallery</Link>{" "}
+                    and they appear here numbered.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {model.featured.map((e, i) => (
+                      <figure key={e.id}>
+                        {e.hasFile ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`/api/files/${e.id}`} alt={e.label} className="h-20 w-full rounded-sm border border-border object-cover" />
+                        ) : (
+                          <div
+                            className="h-20 rounded-sm border border-border"
+                            style={{ background: `linear-gradient(135deg, hsl(${e.hue ?? 200} 14% 68%), hsl(${e.hue ?? 200} 16% 38%))` }}
+                          />
+                        )}
+                        <figcaption className="mt-0.5 truncate text-xs text-muted">Fig {i + 1} — {e.label}</figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
+              </AutoSection>
 
-          <h3 className="font-semibold text-slate-700 text-xs uppercase">Sign-off <span className="text-slate-400 font-normal normal-case">(auto)</span></h3>
-          <p className="text-[10px] text-slate-400 mt-1">Assessor: {model.cover.assessorName} · Reviewed by: {latest?.reviewed_by ?? "______"} · PROTOTYPE</p>
+              <AutoSection
+                title={isSurvey ? "Survey limitations" : "Limitations & outstanding items"}
+                badge="Non-removable"
+              >
+                <ul className="ml-4 list-disc space-y-1 text-xs text-foreground">
+                  {model.limitations.map((l, i) => <li key={i}>{l}</li>)}
+                </ul>
+                <p className="mt-2 text-xs text-muted">
+                  Generated from what actually happened on the job. It cannot be
+                  edited, softened or removed — that is deliberate.
+                </p>
+              </AutoSection>
+
+              <AutoSection title="Evidence index" note={`${model.evidenceIndex.length} items`}>
+                <p className="text-xs text-muted">
+                  Every evidence item is indexed with its section, checklist item and
+                  timestamp. The full table renders on the report page.
+                </p>
+              </AutoSection>
+
+              <AutoSection title="Sign-off" last>
+                <dl className="space-y-1 text-xs">
+                  <div className="flex gap-2">
+                    <dt className="text-muted-light">{isSurvey ? "Surveyor" : "Assessor"}</dt>
+                    <dd className="text-foreground">{model.cover.assessorName}</dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="text-muted-light">Reviewed by</dt>
+                    <dd className="text-foreground">
+                      {latest?.reviewed_by ?? <span className="text-muted">pending manager review</span>}
+                    </dd>
+                  </div>
+                  {latest?.submitted_at && (
+                    <div className="flex gap-2">
+                      <dt className="text-muted-light">Submitted</dt>
+                      <dd className="text-foreground tnum">
+                        {formatDateTime(latest.submitted_at)} · {formatRelative(latest.submitted_at)}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+                <p className="mt-2 text-xs text-muted">
+                  Prototype output — pending assessor sign-off. Not a production
+                  document and not digitally signed.
+                </p>
+              </AutoSection>
+            </div>
+          </section>
         </div>
       </div>
     </StaffShell>
+  );
+}
+
+function AutoSection({
+  title, badge, note, children, last = false,
+}: { title: string; badge?: string; note?: React.ReactNode; children: React.ReactNode; last?: boolean }) {
+  return (
+    <section className={last ? "pt-4" : "border-b border-border py-4"}>
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-1">
+        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+        <span className="flex items-center gap-1.5">
+          {note && <span className="text-xs text-muted-light">{note}</span>}
+          <span className="inline-flex items-center gap-1 rounded-sm border border-border-strong bg-surface px-1.5 py-0.5 text-xs font-medium text-muted">
+            <Icon name="lock" size={10} />
+            Auto{badge ? ` — ${badge}` : ""}
+          </span>
+        </span>
+      </div>
+      {children}
+    </section>
   );
 }

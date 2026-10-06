@@ -78,6 +78,10 @@ const CHECKS = [
   ["/c/demo-upload/upload", ["upload"], "upload page resolves", false],
   ["/c/not-a-real-token", ["isn't recognised"], "invalid link state", false],
   ["/api/pack/j7", null, "evidence pack endpoint (zip)", adminHeaders],
+  // RBAC enforcement — wrong role gets redirected to /access-denied
+  ["/admin", ["Access denied"], "assessor cannot access admin pages", assessorHeaders],
+  ["/manager", ["Access denied"], "assessor cannot access manager pages", assessorHeaders],
+  ["/access-denied", ["Access denied", "does not have permission"], "access-denied page renders for authenticated user", adminHeaders],
   // Auth enforcement — these MUST return 401 without credentials
   ["/api/pack/j7", "expect-401", "pack 401 when unauthenticated", false],
   ["/api/files/fake-id", "expect-401", "file 401 when unauthenticated", false],
@@ -108,6 +112,22 @@ for (const [path, markers, desc, headers] of CHECKS) {
           const text = await loginRes.text();
           const missing = markers.filter((m) => !text.toLowerCase().includes(m.toLowerCase()));
           if (missing.length) throw new Error(`missing marker(s): ${missing.join(" | ")}`);
+        }
+        console.log(`PASS  ${path}  — ${desc}`); pass++; continue;
+      }
+    }
+
+    // --- RBAC redirect to /access-denied ---
+    if (headers && res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location") ?? "";
+      if (loc.includes("/access-denied")) {
+        const followUrl = loc.startsWith("http") ? loc : BASE + loc;
+        const followRes = await fetch(followUrl, { headers });
+        if (followRes.status !== 200) throw new Error(`HTTP ${followRes.status} after redirect to ${loc}`);
+        if (markers) {
+          const text = await followRes.text();
+          const missing = markers.filter((m) => !text.toLowerCase().includes(m.toLowerCase()));
+          if (missing.length) throw new Error(`missing marker(s) after RBAC redirect: ${missing.join(" | ")}`);
         }
         console.log(`PASS  ${path}  — ${desc}`); pass++; continue;
       }

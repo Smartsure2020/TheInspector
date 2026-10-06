@@ -64,7 +64,7 @@ npm run build
 
 | Route | What you see |
 |---|---|
-| `/` | Role picker + demo client links |
+| `/` | Redirects to the sign-in screen (`/login`) — prototype/fake-data/codename panel + demo accounts |
 | `/admin`, `/assessor`, `/manager` | Dashboards per role |
 | `/jobs/new` | Job creation + template picker |
 | `/jobs/j3` | Primary storm demo job (INS-2026-0003) |
@@ -104,7 +104,8 @@ Client links need **no role** — open them logged out (or in a second window).
 
 ## Management demo order (summary — full script in file 04)
 
-1. Role picker `/` — positioning (multi-peril + surveys, placeholder access)
+1. Entry screen `/` — positioning (multi-peril + surveys, prototype-grade access,
+   codename, role-play data)
 2. Admin book of work — 18 jobs, one engine for claims AND surveys
 3. `/jobs/new` — governed template picker; fire greyed out; commercial limited
 4. **Storm** primary demo — j3 + `/c/demo-storm` client journey + readiness dots

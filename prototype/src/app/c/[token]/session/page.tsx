@@ -1,12 +1,17 @@
 // S12 client wrapper — real live room (Chunk 1D). Link-state guarded; if the
-// session already ended (job moved on), shows the completion state directly.
+// session already ended (the job has moved on), the completion state shows
+// directly instead of dropping the client into an empty room.
 import { redirect } from "next/navigation";
-import { PrototypeBanner } from "@/components/Chrome";
+import { ClientShell } from "@/components/Chrome";
 import { ClientRoom } from "@/components/ClientRoom";
+import { ClientOutcome } from "@/components/ui/client";
 import { resolveToken } from "@/lib/data";
 import { checkOtpVerified } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
+
+/** Internal statuses are used only to pick the client-facing message. */
+const POST_SESSION = ["Awaiting evidence", "Awaiting report", "Report submitted", "Returned for correction", "Report completed"];
 
 export default async function ClientSession({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -15,23 +20,25 @@ export default async function ClientSession({ params }: { params: Promise<{ toke
   if (info.state === "invalid" || info.state === "revoked" || info.state === "expired" || !info.job)
     redirect(`/c/${token}`);
 
-  const post = ["Awaiting evidence", "Awaiting report", "Report submitted", "Returned for correction", "Report completed"];
-  if (post.includes(info.job.status))
+  if (POST_SESSION.includes(info.job.status)) {
+    const awaitingUpload = info.job.status === "Awaiting evidence";
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
-        <PrototypeBanner client />
-        <div className="flex-1 flex items-center justify-center p-6 text-center">
-          <div>
-            <div className="text-5xl mb-4">✅</div>
-            <h1 className="text-xl font-bold text-slate-800">Your assessment is complete</h1>
-            <p className="text-sm text-slate-600 mt-3 max-w-sm">
-              If anything else is needed we&apos;ll send you a simple upload link.
-              The claims team will be in touch about next steps.
-            </p>
-          </div>
-        </div>
-      </div>
+      <ClientShell>
+        <ClientOutcome icon="checkCircle" tone="success" title="Your assessment is complete">
+          <p>
+            Thank you — the video part is finished and nothing else is needed on
+            this screen.
+          </p>
+          <p className="mt-3">
+            {awaitingUpload
+              ? "There are a couple of items still to send us. Use the upload link in your SMS whenever you have them."
+              : "If anything else is needed we’ll send you a simple upload link. The claims team will be in touch about next steps."}
+          </p>
+          <p className="mt-3 text-sm">You can close this page.</p>
+        </ClientOutcome>
+      </ClientShell>
     );
+  }
 
   return <ClientRoom token={token} jobId={info.job.id} assessorName={info.job.assessor_name ?? "Your assessor"} />;
 }
