@@ -132,7 +132,11 @@ export function ClientRoom({ token, jobId, assessorName }: { token: string; jobI
       const fd = new FormData();
       fd.set("file", new File([photoPreview.blob], "highres.jpg", { type: "image/jpeg" }));
       const result = await uploadEvidenceAction(token, photoReq.itemKey, fd, "highres_client_photo");
-      adapterRef.current?.sendMessage("assessor", { type: "photo_delivered", evidenceId: result!.id, itemKey: photoReq.itemKey });
+      if ("error" in result) {
+        setPhotoError(result.error);
+        return;
+      }
+      adapterRef.current?.sendMessage("assessor", { type: "photo_delivered", evidenceId: result.id, itemKey: photoReq.itemKey });
       setPhotoReq(null);
       setPhotoPreview(null);
       setBanner("Photo sent — thank you!");

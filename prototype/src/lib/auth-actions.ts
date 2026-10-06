@@ -6,7 +6,7 @@ import { verifyPassword, createSession, revokeSession } from "./auth";
 import { sha256, randomOtp } from "./crypto";
 import { sendOtp } from "./sms";
 import { resolveToken, getClient } from "./data";
-import { isOtpVerified, otpCookieName } from "./client-access";
+import { isOtpVerified, otpCookieName, otpCookieValue, hashLinkToken } from "./client-access";
 
 const roleHome: Record<string, string> = {
   admin: "/admin",
@@ -45,14 +45,17 @@ export async function logoutAction() {
 export async function sendOtpAction(token: string) {
   const info = await resolveToken(token);
   if (info.state === "invalid" || !info.job) return { error: "Invalid link." };
+  // No SMS for revoked / expired links (an old link must not be able to text the client).
+  if (info.state !== "valid" && info.state !== "too_early") return { error: "This link is no longer active." };
+  const tokenHash = hashLinkToken(token);
 
   const client = await getClient(info.job.client_id);
   const phone = client?.phone;
   if (!phone) return { error: "No phone number on file for this appointment." };
 
   const unexpired = await query.get<{ id: string }>(
-    "SELECT id FROM otp_challenges WHERE link_token=? AND verified_at IS NULL AND expires_at > ? AND attempts < max_attempts ORDER BY created_at DESC LIMIT 1",
-    token, nowIso(),
+    "SELECT id FROM otp_challenges WHERE link_token_hash=? AND verified_at IS NULL AND expires_at > ? AND attempts < max_attempts ORDER BY created_at DESC LIMIT 1",
+    tokenHash, nowIso(),
   );
   if (unexpired) return { sent: true };
 
@@ -62,8 +65,8 @@ export async function sendOtpAction(token: string) {
   const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString().replace("T", " ").slice(0, 19);
 
   await query.run(
-    "INSERT INTO otp_challenges (id, link_token, phone, code_hash, attempts, max_attempts, expires_at, created_at) VALUES (?,?,?,?,0,3,?,?)",
-    uuid(), token, phone, codeHash, expiresAt, now,
+    "INSERT INTO otp_challenges (id, link_token_hash, phone, code_hash, attempts, max_attempts, expires_at, created_at) VALUES (?,?,?,?,0,3,?,?)",
+    uuid(), tokenHash, phone, codeHash, expiresAt, now,
   );
 
   await sendOtp(phone, code);
@@ -74,11 +77,16 @@ export async function verifyOtpAction(token: string, formData: FormData) {
   const code = (formData.get("code") as string)?.trim();
   if (!code || code.length !== 6) return { error: "Enter the 6-digit code." };
 
+  // Only an active link can be verified (revoked / expired / invalid links cannot mint a session).
+  const info = await resolveToken(token);
+  if (!info.job || (info.state !== "valid" && info.state !== "too_early"))
+    return { error: "This link is no longer active." };
+
   const challenge = await query.get<{
     id: string; code_hash: string; attempts: number; max_attempts: number;
   }>(
-    "SELECT id, code_hash, attempts, max_attempts FROM otp_challenges WHERE link_token=? AND verified_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
-    token, nowIso(),
+    "SELECT id, code_hash, attempts, max_attempts FROM otp_challenges WHERE link_token_hash=? AND verified_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
+    hashLinkToken(token), nowIso(),
   );
   if (!challenge) return { error: "Code expired. Please request a new one." };
   if (challenge.attempts >= challenge.max_attempts)
@@ -98,7 +106,7 @@ export async function verifyOtpAction(token: string, formData: FormData) {
   );
 
   const jar = await cookies();
-  jar.set(otpCookieName(token), sha256(token + challenge.id), {
+  jar.set(otpCookieName(token), otpCookieValue(token, challenge.id), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

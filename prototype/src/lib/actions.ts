@@ -7,6 +7,7 @@ import { JobStatus, JobType } from "./types";
 import { requireRole, requireSession } from "./auth";
 import { sha256 } from "./crypto";
 import { uploadTooLargeMessage } from "./limits";
+import { checkClientAccess } from "./client-access";
 
 const CLIENT_ACTOR: Actor = { id: "client_link", name: "client_link", role: "client" };
 
@@ -243,30 +244,46 @@ const jobIdForToken = async (token: string) => {
     h, h))?.job_id;
 };
 
+// ---------- client link actions (F16) ----------
+// Every client action is its own HTTP endpoint, so page gating alone is not enough:
+// each one re-checks link validity (not revoked/expired/cancelled), the exact link's
+// purpose, and OTP verification for that exact link (checkClientAccess).
+const PRE_SESSION_STATES = ["valid", "too_early"] as const;
+
 export async function consentAction(token: string, name: string) {
-  const jobId = await jobIdForToken(token);
-  if (jobId) await logEvent(jobId, CLIENT_ACTOR, "consent_accepted", { name, text_version: "draft-1" });
+  const acc = await checkClientAccess(token, { allowedStates: [...PRE_SESSION_STATES], purposes: ["join"] });
+  if (!acc.ok) redirect(acc.reason === "otp" ? `/c/${token}/verify` : `/c/${token}`);
+  await logEvent(acc.jobId, CLIENT_ACTOR, "consent_accepted", { name, text_version: "draft-1" });
   redirect(`/c/${token}/check`);
 }
 
 export async function consentDeclineAction(token: string) {
-  const jobId = await jobIdForToken(token);
-  if (jobId) await logEvent(jobId, CLIENT_ACTOR, "consent_declined", {});
-  revalidatePath(`/jobs/${jobId}`);
+  const acc = await checkClientAccess(token, { allowedStates: [...PRE_SESSION_STATES], purposes: ["join"] });
+  if (!acc.ok) redirect(acc.reason === "otp" ? `/c/${token}/verify` : `/c/${token}`);
+  await logEvent(acc.jobId, CLIENT_ACTOR, "consent_declined", {});
+  revalidatePath(`/jobs/${acc.jobId}`);
 }
 
 export async function cannotAttendAction(token: string) {
-  const jobId = await jobIdForToken(token);
-  if (jobId) await logEvent(jobId, CLIENT_ACTOR, "client_requested_reschedule", {});
+  const acc = await checkClientAccess(token, { allowedStates: [...PRE_SESSION_STATES], purposes: ["join"] });
+  if (!acc.ok) redirect(acc.reason === "otp" ? `/c/${token}/verify` : `/c/${token}`);
+  await logEvent(acc.jobId, CLIENT_ACTOR, "client_requested_reschedule", {});
 }
 
+/** Best-effort readiness telemetry: unauthorised callers are ignored (nothing is written). */
 export async function clientPingAction(token: string, kind: "link_opened" | "device_check_passed" | "client_waiting", data?: Record<string, unknown>) {
-  const jobId = await jobIdForToken(token);
-  if (!jobId) return;
-  const seen = await query.get("SELECT 1 FROM event_log WHERE job_id=? AND event_type=? LIMIT 1", jobId, kind);
-  if (!seen) await logEvent(jobId, CLIENT_ACTOR, kind, data ?? {});
+  if (!["link_opened", "device_check_passed", "client_waiting"].includes(kind)) return;
+  const acc = await checkClientAccess(token, { allowedStates: [...PRE_SESSION_STATES], purposes: ["join"] });
+  if (!acc.ok) return;
+  const seen = await query.get("SELECT 1 FROM event_log WHERE job_id=? AND event_type=? LIMIT 1", acc.jobId, kind);
+  if (!seen) await logEvent(acc.jobId, CLIENT_ACTOR, kind, data ?? {});
 }
 
+/**
+ * Deliberate exception: this is how a client with an EXPIRED or REVOKED link asks for a new
+ * one, so OTP/active-state cannot be required. It still needs a link token that resolves to
+ * a real job, and only writes one audit event.
+ */
 export async function requestNewLinkAction(token: string) {
   const jobId = await jobIdForToken(token);
   if (jobId) await logEvent(jobId, CLIENT_ACTOR, "client_requested_new_link", {});
@@ -394,15 +411,21 @@ export async function uploadEvidenceAction(
   itemKey: string,
   formData: FormData,
   kind: "client_upload" | "highres_client_photo" = "client_upload"
-) {
-  const { resolveToken } = await import("./data");
-  const info = await resolveToken(token);
-  if (!info.job || info.state === "revoked" || info.state === "invalid") throw new Error("This link is no longer active.");
+): Promise<{ id: string } | { error: string; needsOtp?: boolean }> {
+  // F16: link must be active (valid — NOT expired/revoked/cancelled) and OTP-verified for this exact link.
+  // Expected failures are RETURNED (production hides thrown messages from the browser).
+  const acc = await checkClientAccess(token, { allowedStates: ["valid"] });
+  if (!acc.ok)
+    return acc.reason === "otp"
+      ? { error: "Please verify your phone number to continue.", needsOtp: true }
+      : { error: "This link is no longer active. Please ask for a new one." };
+  const info = { job: acc.job };
+  if (kind !== "client_upload" && kind !== "highres_client_photo") return { error: "That upload type isn’t supported." };
   const file = formData.get("file") as File | null;
-  if (!file || file.size === 0) throw new Error("No file received.");
+  if (!file || file.size === 0) return { error: "No file was received. Please try again." };
   const { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES, saveUpload } = await import("./storage");
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error(uploadTooLargeMessage());
-  if (!ALLOWED_UPLOAD_MIMES.includes(file.type)) throw new Error("Please upload a photo or PDF.");
+  if (file.size > MAX_UPLOAD_BYTES) return { error: uploadTooLargeMessage() };
+  if (!ALLOWED_UPLOAD_MIMES.includes(file.type)) return { error: "Please upload a photo or PDF." };
 
   const id = uuid();
   const bytes = Buffer.from(await file.arrayBuffer());

@@ -45,7 +45,13 @@ export function UploadItem({
     fd.set("file", file);
     start(async () => {
       try {
-        await uploadEvidenceAction(token, itemKey, fd);
+        const res = await uploadEvidenceAction(token, itemKey, fd);
+        if ("error" in res) {
+          setFileName("");
+          setErr(res.error);
+          if (res.needsOtp) router.push(`/c/${token}/verify`);
+          return;
+        }
         setJustDone(true);
         router.refresh();
       } catch (e) {
