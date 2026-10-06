@@ -267,7 +267,7 @@ Test-process note: my first "bypass the countdown" attempt did nothing because R
 | F21 | OTP codes were generated with `Math.random()`. | Medium | **Fixed** (`6007ec2`) |
 | F22 | **[Required before real-client pilot — preferred: send only after the client taps "Text me a code"]** Link-preview/security scanners that follow `/c/<token>` → `/verify` can trigger the first SMS (page render sends it). The new limits bound this to 1 send per cooldown and 5 per hour per link, but it can still spend an SMS and set a cooldown before the real client arrives. | Low–Medium | Open — option: send the first code only on an explicit user action ("Text me a code"). Decide before real-client pilot. |
 | F23 | **[Concurrency hardening required before production/real-client use; not a staging blocker]** Rate-limit checks are read-then-insert, so two simultaneous requests could both pass and send two SMS (still bounded: the next request sees both rows). | Low | Noted |
-| F24 | **[Fix before next pilot rehearsal; staging not blocked (Vercel = UTC)]** `data.ts` parses stored UTC timestamps without a `Z` (e.g. link expiry), so on a server whose timezone is not UTC (this laptop is UTC+2) link expiry/early-window checks are skewed by the offset. Vercel runs in UTC so staging is unaffected; the new OTP code uses explicit UTC. | Low (staging) | Open — fix before relying on local-time hosts |
+| F24 | **[FIXED in `f41c58c` — see §13]** `data.ts` parses stored UTC timestamps without a `Z` (e.g. link expiry), so on a server whose timezone is not UTC (this laptop is UTC+2) link expiry/early-window checks are skewed by the offset. Vercel runs in UTC so staging is unaffected; the new OTP code uses explicit UTC. | Low (staging) | Open — fix before relying on local-time hosts |
 
 ### F18 — recorded as a pre-real-client-pilot design decision (not started)
 
@@ -291,3 +291,57 @@ Test-process note: my first "bypass the countdown" attempt did nothing because R
 ## 12. Position after `f119f16` (recorded 2026-10-06)
 
 F19 and F21 closed. Twilio abuse risk reduced, not production-final. Staff-only fake-data staging may proceed after manual provisioning; **real-client pilot remains NO-GO**. F22 (required before real-client pilot), F23 (before production), F24 (before next pilot rehearsal), F18 and direct-to-S3 upload are recorded and **not started**. Deployment is paused until accounts and spend are approved. See `CURRENT-STATE.md` → "Current position".
+
+---
+
+## 13. Update — F24 fixed (commit `f41c58c`, 2026-10-06)
+
+Scope kept tight: time **calculations** only. No F18, F22, direct-to-S3, deploy, cloud resources or secrets.
+
+### What the bug really was
+
+The database stores two different kinds of timestamp in the same text shape (`YYYY-MM-DD HH:MM[:SS]`):
+
+| Kind | Examples | Meaning |
+|---|---|---|
+| **UTC instants** (written by `nowIso()`) | `created_at`, `occurred_at`, `verified_at`, `captured_at`, OTP/session expiry | exact moments in UTC |
+| **Wall-clock business time** (typed by staff in the schedule form) | `appointments.scheduled_start`, `link_expires_at` (start + 24 h), upload-request `expires_at` | South African time, no zone stored |
+
+Every parser used `new Date(s.replace(" ", "T"))` — "the server's local timezone" — which is correct for wall-clock values only on a SAST server and for UTC instants only on a UTC server. The same stored `2026-10-07 09:00` meant 07:00Z on this laptop and 09:00Z on Vercel: link expiry and the 2-hour early-join window moved by two hours depending on where the app ran.
+
+### Fix
+
+New `src/lib/time.ts` (pure, client-safe): `parseUtcStamp` / `utcStampFromMs` for instants; `parseWallStamp` / `wallStampFromMs` / `wallParts` for wall-clock business time. SAST is a fixed **+02:00** (no DST), so the offset is exact. Applied to:
+
+- `resolveToken` link expiry and early-join window (`data.ts`)
+- `scheduleAction` expiry (start + 24 h, no server-local getters); an invalid date/time is now rejected instead of silently storing `NaN-NaN-NaN`
+- schedule-form defaults (were server-local, i.e. UTC on Vercel; now SAST)
+- client countdown (`ClientBits`, now correct on any device timezone)
+- `formatRelative` ("x minutes ago") parses UTC instants
+- OTP helpers reuse the shared functions
+
+**Not changed:** stored values/schema, and the *display* of stored digits.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| Secret scan | Clean |
+| `npx tsc --noEmit` / `npm run build` | Clean / Clean |
+| `npm run qa:smoke` (production, default env) | **33/33** |
+| New `npm run qa:time` (17 checks: UTC vs wall parsing, 24 h expiry incl. month/year rollover, form defaults, invalid input) | Identical and correct under **UTC, Africa/Johannesburg, America/New_York, Pacific/Auckland** |
+| Demonstration of the original bug | Old parse of `2026-10-07 09:00`: 09:00Z under TZ=UTC vs 07:00Z under TZ=SAST; new parse: 07:00Z in both |
+| Real servers started under TZ=UTC, SAST and New York; `demo-live` set relative to now | Identical decisions: starts in 1 h → valid; in 3 h → too_early; **119 min → valid, 121 min → too_early**; expires in 1 min → valid; expired 1 min ago → expired |
+| Schedule-form default on a UTC server | Shows SAST (now + 30 min), not UTC |
+| Booking through the UI on a UTC server (start 2026-12-31 22:00) | Stored expiry 2027-01-01 22:00 |
+
+### New findings
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| F25 | **Display of UTC instants.** Event/created/submitted times are shown as their stored UTC digits (two hours behind South African time), and "Today/Yesterday" bucketing uses the server's clock. Wall-clock values (scheduled times) display correctly. Converting UTC instants for display is a product decision because seeded demo values are literal wall-clock strings and would shift. Also: evidence labels embed the assessor's browser-local time while `captured_at` is UTC. | Low | Open — decide before pilot rehearsal |
+| F26 | Seeded demo links have a fixed `link_expires_at` of **2026-12-31 23:59** (wall-clock). After that date the `demo-*` links become "expired", and demos/`qa:smoke` checks that rely on them need the fixtures updated. | Low | Open — note for after 2026-12-31 |
+
+### Status
+
+Staff-only fake-data staging: still pending manual provisioning. Real-client pilot: **NO-GO**. Deployment paused; no cloud resources; no secrets.

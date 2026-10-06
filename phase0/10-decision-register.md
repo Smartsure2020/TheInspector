@@ -118,3 +118,9 @@ See `CURRENT-STATE.md` for the consolidated status.
 - **F24 — small timestamp-correctness issue**; recommend fixing before the next pilot rehearsal; Vercel runs in UTC so staging is not blocked.
 - **Not started (awaiting explicit approval):** F18 (link-storage design decision), F22, direct-to-S3 upload.
 - **Deployment / manual provisioning:** paused until accounts and spend are approved.
+
+### Update 2026-10-06 (latest) — F24 fixed
+
+- **Closed (`f41c58c`):** F24. Stored UTC instants and SAST wall-clock business times are now parsed explicitly (`lib/time.ts`, fixed +02:00, no DST), so link expiry and the 2-hour early-join window no longer depend on the server timezone. Verified under UTC, SAST, New York and Auckland; `npm run qa:time` added.
+- **New, for decision:** F25 (UTC instants displayed as UTC digits, two hours behind SAST; seeded demo values are literal wall-clock strings, so converting is a product decision); F26 (seeded demo links expire 2026-12-31).
+- **Unchanged:** F18, F22, direct-to-S3 not started; nothing deployed; no cloud resources; no secrets; real-client pilot NO-GO; staging pending manual provisioning.

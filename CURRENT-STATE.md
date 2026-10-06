@@ -29,8 +29,9 @@ Required before any real-client pilot / production (not started; each needs expl
 | # | Item | Requirement |
 |---|---|---|
 | F22 | First SMS sent on verify-page render | **Required before real-client pilot.** Preferred behaviour: do **not** auto-send on page render; send only after the client taps **"Text me a code"**. |
+| F25 | UTC instants are *displayed* as UTC digits (2 h behind SAST); product decision | Low — decide before pilot rehearsal. Also F26: seeded demo links expire 2026-12-31. |
 | F23 | OTP rate-limit check is read-then-insert (concurrency race) | **Concurrency hardening required before production / real-client use.** Not a blocker for fake-data staging. |
-| F24 | UTC timestamps parsed without `Z` in `data.ts` (skew on non-UTC hosts) | Small correctness fix; **recommend before the next pilot rehearsal.** Vercel runs in UTC, so staging is not blocked. |
+| F24 | UTC timestamps parsed without `Z` in `data.ts` (skew on non-UTC hosts) | **Closed** (`f41c58c`): stored UTC instants and SAST wall-clock values are now parsed explicitly via `lib/time.ts`; verified identical under UTC / SAST / New York / Auckland (`npm run qa:time`). Residual display issue is F25. |
 | F18 | Raw, staff-copyable link tokens stored | Design decision (likely show-once link + regenerate/revoke) before real-client pilot. Not started. |
 | F2 | Uploads capped at 3.5 MB | Direct-to-S3 upload required before real-client pilot. Not started. |
 | G1/G2/G3 | Mobile/provider re-test; workshop/template evidence | Required before real-client pilot / final provider decision. |
