@@ -71,9 +71,16 @@ ran or approved the activity — they have not been filled in on their behalf.
 
 | Item | What the register claims | Evidence expected | Evidence in repo | Approved by | Remains conditional |
 |---|---|---|---|---|---|
-| G3 — template sign-off (workshop 2026-07-07) | Templates signed off as-is | Completed `phase1/workshop/01-review-workbook.md`, attendee list, per-template verdicts | None (workbook blank) | TO COMPLETE | Treat templates as v0.1-1F draft until filed |
-| G1 — mobile verification (2026-07-13) | Tested on real devices | SP1–SP10 results, device/OS/browser matrix | Only 3 older Daily.co spike screenshots (`phase1/spike-evidence/`) | TO COMPLETE | Do not claim "clients can join from a phone" |
-| G2 / D-11 — provider selection (LiveKit) | LiveKit selected | Filled `provider-comparison-template.md` / `provider-mobile-test-pack.md`; cost + POPIA residency notes | None (templates blank) | TO COMPLETE | LiveKit is the working direction, not a ratified decision; P2P remains the staging default |
+| G3 — template sign-off (workshop 2026-07-07) | Templates signed off as-is | Completed `phase1/workshop/01-review-workbook.md`, attendee list, per-template verdicts | None (workbook blank) | TO COMPLETE | **Not formally passed** until filed; treat templates as v0.1-1F draft |
+| G1 — mobile verification (2026-07-13) | Tested on real devices | SP1–SP10 results, device/OS/browser matrix | Only 3 older Daily.co spike screenshots (`phase1/spike-evidence/`) | TO COMPLETE | **Provisionally recalled as passed (Chrome, Firefox, iPhone); evidence not located; formal retest required before real-client pilot.** Do not claim "clients can join from a phone" until filed |
+| G2 / D-11 — provider selection (LiveKit) | LiveKit selected | Filled `provider-comparison-template.md` / `provider-mobile-test-pack.md`; cost + POPIA residency notes | None (templates blank) | TO COMPLETE | **Provisionally recalled as passed; evidence not located; formal retest required before final provider decision / real-client pilot.** LiveKit = **staging default only** (2026-10-06); Daily available for comparison; P2P local/dev fallback only |
 | Phase H green-light (2026-07-13) | Production hardening approved | Dated approval note | Register note only | TO COMPLETE | — |
 
 See `CURRENT-STATE.md` for the consolidated status.
+
+### Update 2026-10-06 — Phase 5C staging position
+
+- **Staging default video: LiveKit.** Not a final provider decision (D-11 remains conditional on a filed, formal retest).
+- Hosting direction for staging: Vercel (protected preview) + Postgres + S3, af-south-1 preferred; fake/internal data only. Needs approvals recorded: Vercel plan, AWS spend, Twilio/LiveKit accounts (see `manual-cloud-setup-checklist.md`).
+- Open production-hosting question (G12): Vercel cannot reach a private RDS without fixed IPs/Secure Compute; decide before production.
+- Staff-only staging pilot: GO only if staging checks pass. **Real client data: NO-GO.**

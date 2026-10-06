@@ -14,6 +14,27 @@ Feature-complete prototype with a real (but un-deployed) security layer.
 **Real client data: NO-GO.** **Staging: not deployed.** Internal staff-only pilot
 on fake data: GO (per `staging-go-no-go-checklist.md`).
 
+## Mobile / provider testing — note
+
+Mobile/provider testing is believed to have been performed previously across Chrome, Firefox and iPhone, with passing results, but the filed evidence has not yet been located. This does not block technical staging setup because staging remains staff-only and fake-data only. The formal mobile/provider test pack must be rerun or recovered before any real-client pilot, final provider decision, or G2/G3 gate closure.
+
+**Current position**
+
+- Staging default video: **LiveKit** (staging default only)
+- Provider decision: **not formally final**
+- Daily.co: available for comparison
+- P2P: local/dev fallback only
+
+## Phase 5C — technical staging (2026-10-06): PAUSED at manual provisioning
+
+Stable checkpoint pushed (`main` @ `9a648f9`, tag `inspector-current-stable`). No cloud resources
+created, no spend, no secrets committed. AWS/Twilio/LiveKit access is not available from the
+build environment, so provisioning is a manual step (`manual-cloud-setup-checklist.md`).
+The Postgres path was proven locally for the first time (`staging-evidence-chain-results.md`).
+Blockers/findings F1–F13 are in `phase5c-staging-deployment-report.md`; the most important:
+**video token routes are unauthenticated (F1)** and **photo uploads exceed default size limits (F2)**.
+Staff-only staging pilot: **GO only if staging checks pass** (not yet run). Real client data: **NO-GO**.
+
 ## Verified on 2026-10-06 (this stabilisation pass)
 
 | Check | Result |
@@ -73,9 +94,14 @@ Not yet exercised: client-upload path, S3 storage, Postgres.
 
 | Gate | Recorded? | Evidenced in repo? | Treat as |
 |---|---|---|---|
-| G1 Mobile live-room verification | Register says testing completed 2026-07-13 | **No** — device matrix/results not in repo; 5A report (07-16) lists mobile as unverified; only 3 old Daily.co spike screenshots exist | **Not formally passed** |
-| G2 Video provider decision | Register says LiveKit selected | **No** — `provider-comparison-template.md` and `provider-mobile-test-pack.md` are unfilled | **Not formally passed** (LiveKit is the working direction, not a ratified decision) |
-| G3 Template sign-off | Register says signed off as-is at the 2026-07-07 workshop | **No** — `workshop/01-review-workbook.md` is blank; no sign-off record | **Not formally passed** |
+| G1 Mobile live-room verification | Register says testing completed 2026-07-13 | **No** — device matrix/results not in repo; 5A report (07-16) lists mobile as unverified; only 3 old Daily.co spike screenshots exist | **Provisionally recalled as passed (Chrome/Firefox/iPhone); evidence not located; formal retest required** before real-client pilot. Not formally passed. |
+| G2 Video provider decision | Register says LiveKit selected | **No** — `provider-comparison-template.md` and `provider-mobile-test-pack.md` are unfilled | **Provisionally recalled as passed; evidence not located; formal retest required** before final provider decision / real-client pilot. LiveKit = staging default only. Not formally passed. |
+| G3 Template sign-off (workshop) | Register says signed off as-is at the 2026-07-07 workshop | **No** — `workshop/01-review-workbook.md` is blank; no sign-off record | **Not formally passed** until filed |
+
+> **Numbering:** this repo's gate IDs (G1 mobile, G2 provider, G3 templates — `handover/06-DEFERRED-GATES.md`)
+> differ from the order used in the 2026-10-06 instruction (workshop / mobile / provider). Statuses above
+> are recorded by *activity*, using the repo's IDs, to avoid renumbering every existing document.
+> Confirm or tell me to renumber.
 | G4 Live-data safeguards | No | n/a | **Not approved** — hard gate for any real client data |
 | G5 Postgres + S3 | n/a | Code complete | **Built, not proven in live infra** |
 | G6 Auth / RBAC | Approved 2026-07-13 | Yes (login, RBAC, OTP) | **Partially done** — MFA, password policy outstanding |
@@ -103,7 +129,8 @@ Not yet exercised: client-upload path, S3 storage, Postgres.
 1. ~~Commit + tag current state~~ — done.
 2. ~~27/27 smoke in production mode~~ — done.
 3. ~~Evidence-chain verification with a real capture~~ — done (SQLite/local).
-4. Fill the evidence gaps for G1/G2/G3 (owner: whoever ran them) or re-run.
-5. Deploy staging (Postgres + S3 + TURN + persistent signaling), then re-run
-   smoke and the evidence chain there, including client upload.
-6. Then, in this order: ClamAV upload scanning → Uppy → Metabase → Archify docs.
+4. Manual provisioning per `manual-cloud-setup-checklist.md` (approvals first).
+5. Fix F1 (token-route auth), F2 (upload limits), F3/F5 (S3 credentials, pg pool/SSL); deploy protected
+   staging; run `staging-evidence-chain-results.md` and `staging-provider-verification-results.md`.
+6. File or re-run the mobile/provider/workshop evidence (G1–G3) before any real-client pilot.
+7. Then, in this order: ClamAV upload scanning → Uppy (also answers F2 properly) → Metabase → Archify docs.

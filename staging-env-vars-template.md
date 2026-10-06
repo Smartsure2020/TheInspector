@@ -1,3 +1,5 @@
+> **Superseded 2026-10-06:** use `required-secrets-and-env-vars.md`. This template lists `SMS_API_KEY` and `LIVEKIT_URL`, which the code does not read.
+
 # Staging Environment Variables Template
 
 Copy to `.env.local` (or your hosting platform's env config) for staging deployment.
