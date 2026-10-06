@@ -20,7 +20,9 @@ export default async function VerifyPage({ params }: { params: Promise<{ token: 
   const phone = client?.phone;
   const masked = phone ? phone.slice(0, 3) + " *** " + phone.slice(-3) : null;
 
-  await sendOtpAction(token);
+  // Sends the first code only; never re-sends while a usable code exists, and is rate-limited (F19).
+  const otp = await sendOtpAction(token);
+  const codeOnItsWay = otp.state === "sent";
 
   return (
     <ClientShell>
@@ -33,13 +35,15 @@ export default async function VerifyPage({ params }: { params: Promise<{ token: 
             Let’s check it’s you
           </h1>
           <p className="mt-2.5 text-base leading-relaxed text-muted">
-            {masked
-              ? <>We’ve sent a 6-digit code to <strong className="text-foreground tnum">{masked}</strong>.</>
-              : <>We’ve sent a 6-digit code to your phone.</>}
+            {!codeOnItsWay
+              ? <>For your security we need to check it’s you with a 6-digit code.</>
+              : masked
+                ? <>We’ve sent a 6-digit code to <strong className="text-foreground tnum">{masked}</strong>.</>
+                : <>We’ve sent a 6-digit code to your phone.</>}
           </p>
         </div>
 
-        <VerifyOtpForm token={token} />
+        <VerifyOtpForm token={token} initialStatus={otp} />
 
         <p className="mt-5 text-center text-sm leading-relaxed text-muted">
           The code lasts 10 minutes. If it hasn’t arrived, check your SMS messages
